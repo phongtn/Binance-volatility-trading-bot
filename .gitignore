@@ -11,3 +11,7 @@ __*__
 
 # IDE settings
 .vscode
+
+.idea
+
+.creds.yml
