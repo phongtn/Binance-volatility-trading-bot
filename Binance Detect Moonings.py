@@ -520,6 +520,8 @@ if __name__ == '__main__':
         client = Client(access_key, secret_key, tld='us')
     else:
         client = Client(access_key, secret_key)
+        if TEST_MODE:
+            client.API_URL = 'https://testnet.binance.vision/api'
         
     # If the users has a bad / incorrect API key.
     # this will stop the script from starting, and display a helpful error.
