@@ -97,7 +97,7 @@ sys.stdout = St_ampe_dOut()
 
 
 def get_price(add_to_historical=True):
-    '''Return the current price for all coins on binance'''
+    """Return the current price for all coins on binance"""
 
     global historical_prices, hsp_head
 
