@@ -364,7 +364,7 @@ def buy():
 
 
 def sell_coins():
-    '''sell coins that have reached the STOP LOSS or TAKE PROFIT threshold'''
+    """sell coins that have reached the STOP LOSS or TAKE PROFIT threshold"""
 
     global hsp_head, session_profit
 
@@ -393,7 +393,8 @@ def sell_coins():
                 f"{coin} TP reached, adjusting TP {coins_bought[coin]['take_profit']:.2f}  and SL {coins_bought[coin]['stop_loss']:.2f} accordingly to lock-in profit")
             continue
 
-        # check that the price is below the stop loss or above take profit (if trailing stop loss not used) and sell if this is the case
+        # check that the price is below the stop loss or above take profit (if trailing stop loss not used) and sell
+        # if this is the case
         if LastPrice < SL or LastPrice > TP and not USE_TRAILING_STOP_LOSS:
             print(
                 f"{txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}TP or SL reached, selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} : {PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}")
