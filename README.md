@@ -46,6 +46,11 @@ docker run --rm -it trading_bot:1.0
 
 ```
 
+```shell
+docker tag trading_bot:1.0 phongtn/volbot:latest
+docker push phongtn/volbot:latest 
+```
+
 ## Troubleshooting
 
 1. Read the [FAQ](FAQ.md)
