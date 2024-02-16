@@ -36,6 +36,16 @@ Please checkout our wiki pages:
 - [Bot Strategy Guide](https://github.com/CyberPunkMetalHead/Binance-volatility-trading-bot/wiki/Bot-Strategy-Guide)
 - [Configuration Guide](https://github.com/CyberPunkMetalHead/Binance-volatility-trading-bot/wiki/Configuration)
 
+## Usage with docker
+```shell
+docker build -t trading_bot:1.0 .
+```
+
+```shell
+docker run --rm -it trading_bot:1.0
+
+```
+
 ## Troubleshooting
 
 1. Read the [FAQ](FAQ.md)

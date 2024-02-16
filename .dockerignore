@@ -1,0 +1,9 @@
+README.md
+.github
+.gitignore
+venv
+.idea
+.git
+
+*.json
+trades.txt
