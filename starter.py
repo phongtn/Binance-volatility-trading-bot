@@ -126,8 +126,8 @@ def get_price(add_to_historical=True):
 
 
 def wait_for_price():
-    '''calls the initial price and ensures the correct amount of time has passed
-    before reading the current price again'''
+    """calls the initial price and ensures the correct amount of time has passed
+    before reading the current price again"""
 
     global historical_prices, hsp_head, volatility_cooloff
 
@@ -144,11 +144,11 @@ def wait_for_price():
             minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)):
         # sleep for exactly the amount of time required
         time.sleep((timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) - (
-                    datetime.now() - historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'])).total_seconds())
+                datetime.now() - historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'])).total_seconds())
 
     print(f'Working...Session profit:{session_profit:.2f}% Est:${(QUANTITY * session_profit) / 100:.2f}')
 
-    # retreive latest prices
+    # retrieve latest prices
     get_price()
 
     # calculate the difference in prices
@@ -159,10 +159,11 @@ def wait_for_price():
         max_price = max(historical_prices, key=lambda x: -1 if x is None else float(x[coin]['price']))
 
         threshold_check = (-1.0 if min_price[coin]['time'] > max_price[coin]['time'] else 1.0) * (
-                    float(max_price[coin]['price']) - float(min_price[coin]['price'])) / float(
+                float(max_price[coin]['price']) - float(min_price[coin]['price'])) / float(
             min_price[coin]['price']) * 100
 
-        # each coin with higher gains than our CHANGE_IN_PRICE is added to the volatile_coins dict if less than MAX_COINS is not reached.
+        # each coin with higher gains than our CHANGE_IN_PRICE
+        # is added to the volatile_coins dict if less than MAX_COINS is not reached.
         if threshold_check > CHANGE_IN_PRICE:
             coins_up += 1
 
@@ -175,12 +176,13 @@ def wait_for_price():
 
                 if len(coins_bought) + len(volatile_coins) < MAX_COINS or MAX_COINS == 0:
                     volatile_coins[coin] = round(threshold_check, 3)
-                    print(
-                        f'{coin} has gained {volatile_coins[coin]}% within the last {TIME_DIFFERENCE} minutes, calculating volume in {PAIR_WITH}')
+                    print(f'{coin} has gained {volatile_coins[coin]}% '
+                          f'within the last {TIME_DIFFERENCE} minutes, calculating volume in {PAIR_WITH}')
 
                 else:
-                    print(
-                        f'{txcolors.WARNING}{coin} has gained {round(threshold_check, 3)}% within the last {TIME_DIFFERENCE} minutes, but you are holding max number of coins{txcolors.DEFAULT}')
+                    print(f'{txcolors.WARNING}{coin} has gained {round(threshold_check, 3)}% '
+                          f'within the last {TIME_DIFFERENCE} minutes, '
+                          f'but you are holding max number of coins{txcolors.DEFAULT}')
 
         elif threshold_check < CHANGE_IN_PRICE:
             coins_down += 1
@@ -224,17 +226,17 @@ def external_signals():
 
 
 def pause_bot():
-    '''Pause the script when exeternal indicators detect a bearish trend in the market'''
+    """Pause the script when external indicators detect a bearish trend in the market"""
     global bot_paused, session_profit, hsp_head
 
-    # start counting for how long the bot's been paused
+    # start counting for how long the bots been paused
     start_time = time.perf_counter()
 
     while os.path.isfile("signals/paused.exc"):
 
         if bot_paused == False:
-            print(
-                f'{txcolors.WARNING}Pausing buying due to change in market conditions, stop loss and take profit will continue to work...{txcolors.DEFAULT}')
+            print(f'{txcolors.WARNING}Pausing buying due to change in market conditions, '
+                  f'stop loss and take profit will continue to work...{txcolors.DEFAULT}')
             bot_paused = True
 
         # Sell function needs to work even while paused
@@ -375,9 +377,9 @@ def sell_coins():
     for coin in list(coins_bought):
         # define stop loss and take profit
         TP = float(coins_bought[coin]['bought_at']) + (
-                    float(coins_bought[coin]['bought_at']) * coins_bought[coin]['take_profit']) / 100
+                float(coins_bought[coin]['bought_at']) * coins_bought[coin]['take_profit']) / 100
         SL = float(coins_bought[coin]['bought_at']) + (
-                    float(coins_bought[coin]['bought_at']) * coins_bought[coin]['stop_loss']) / 100
+                float(coins_bought[coin]['bought_at']) * coins_bought[coin]['stop_loss']) / 100
 
         LastPrice = float(last_price[coin]['price'])
         BuyPrice = float(coins_bought[coin]['bought_at'])
@@ -425,7 +427,7 @@ def sell_coins():
                 # Log trade
                 if LOG_TRADES:
                     profit = ((LastPrice - BuyPrice) * coins_sold[coin]['volume']) * (
-                                1 - (TRADING_FEE * 2))  # adjust for trading fee here
+                            1 - (TRADING_FEE * 2))  # adjust for trading fee here
                     write_log(
                         f"Sell: {coins_sold[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} Profit: {profit:.2f} {PriceChange - (TRADING_FEE * 2):.2f}%")
                     session_profit = session_profit + (PriceChange - (TRADING_FEE * 2))
@@ -541,7 +543,7 @@ if __name__ == '__main__':
         if TEST_MODE:
             client.API_URL = 'https://testnet.binance.vision/api'
 
-    # If the users has a bad / incorrect API key.
+    # If the users have a bad / incorrect API key.
     # this will stop the script from starting, and display a helpful error.
     api_ready, msg = test_api_key(client, BinanceAPIException)
     if api_ready is not True:
@@ -575,7 +577,7 @@ if __name__ == '__main__':
     print('Press Ctrl-Q to stop the script')
 
     if not TEST_MODE:
-        if not args.notimeout:  # if notimeout skip this (fast for dev tests)
+        if not args.notimeout:  # if no-timeout skip this (fast for dev tests)
             print('WARNING: You are using the Mainnet and live funds. Waiting 30 seconds as a security measure')
             time.sleep(30)
 
@@ -621,9 +623,9 @@ if __name__ == '__main__':
             remove_from_portfolio(coins_sold)
         except ReadTimeout as rt:
             READ_TIMEOUT_COUNT += 1
-            print(
-                f'{txcolors.WARNING}We got a timeout error from from binance. Going to re-loop. Current Count: {READ_TIMEOUT_COUNT}\n{rt}{txcolors.DEFAULT}')
+            print(f"{txcolors.WARNING}We got a timeout error from from binance. Going to re-loop. "
+                  f"Current Count: {READ_TIMEOUT_COUNT}\n{rt}{txcolors.DEFAULT}")
         except ConnectionError as ce:
             CONNECTION_ERROR_COUNT += 1
-            print(
-                f'{txcolors.WARNING}We got a timeout error from from binance. Going to re-loop. Current Count: {CONNECTION_ERROR_COUNT}\n{ce}{txcolors.DEFAULT}')
+            print(f'{txcolors.WARNING}We got a timeout error from from binance. Going to re-loop.'
+                  f' Current Count: {CONNECTION_ERROR_COUNT}\n{ce}{txcolors.DEFAULT}')
