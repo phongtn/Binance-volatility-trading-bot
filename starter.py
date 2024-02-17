@@ -2,7 +2,7 @@
 Disclaimer
 
 All investment strategies and investments involve risk of loss.
-Nothing contained in this program, scripts, code or repositoy should be
+Nothing contained in this program, scripts, code or repository should be
 construed as investment advice.Any reference to an investment's past or
 potential performance is not, and should not be construed as, a recommendation
 or as a guarantee of any specific outcome or profit.
@@ -25,7 +25,8 @@ import importlib
 # used for directory handling
 import glob
 
-# Needed for colorful console output Install with: python3 -m pip install colorama (Mac/Linux) or pip install colorama (PC)
+# Needed for colorful console output
+# Installation with: python3 -m pip install colorama (Mac/Linux) or pip install colorama (PC)
 from colorama import init
 
 init()
@@ -112,7 +113,11 @@ def get_price(add_to_historical=True):
                 initial_price[coin['symbol']] = {'price': coin['price'], 'time': datetime.now()}
         else:
             if PAIR_WITH in coin['symbol'] and all(item not in coin['symbol'] for item in FIATS):
-                initial_price[coin['symbol']] = {'price': coin['price'], 'time': datetime.now()}
+                current_price = coin['price']
+                initial_price[coin['symbol']] = {'price': current_price, 'time': datetime.now()}
+                # only tracking coin have low denomination
+                # if float(current_price) <= 2 and coin['symbol'] == 'BNBUSDT':
+                #     initial_price[coin['symbol']] = {'price': current_price, 'time': datetime.now()}
 
     if add_to_historical:
         hsp_head += 1
@@ -140,6 +145,7 @@ def wait_for_price():
 
     pause_bot()
 
+    # print(historical_prices[hsp_head])
     if historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'] > datetime.now() - timedelta(
             minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)):
         # sleep for exactly the amount of time required
@@ -304,7 +310,7 @@ def convert_volume():
 
 
 def buy():
-    '''Place Buy market orders for each volatile coin found'''
+    """Place Buy market orders for each volatile coin found"""
     volume, last_price = convert_volume()
     orders = {}
 
@@ -445,7 +451,7 @@ def sell_coins():
 
 
 def update_portfolio(orders, last_price, volume):
-    '''add every coin bought to our portfolio for tracking/selling later'''
+    """add every coin bought to our portfolio for tracking/selling later"""
     if DEBUG: print(orders)
     for coin in orders:
         coins_bought[coin] = {
@@ -466,7 +472,7 @@ def update_portfolio(orders, last_price, volume):
 
 
 def remove_from_portfolio(coins_sold):
-    '''Remove coins sold due to SL or TP from portfolio'''
+    """Remove coins sold due to SL or TP from portfolio"""
     for coin in coins_sold:
         coins_bought.pop(coin)
 
