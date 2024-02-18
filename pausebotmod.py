@@ -1,7 +1,8 @@
-from tradingview_ta import TA_Handler, Interval, Exchange
 import os
-import time
 import threading
+import time
+
+from tradingview_ta import TA_Handler, Interval
 
 INTERVAL = Interval.INTERVAL_1_MINUTE  # Timeframe for analysis
 
@@ -27,9 +28,7 @@ def analyze():
     try:
         analysis = handler.get_analysis()
     except Exception as e:
-        print("pausebotmod:")
-        print("Exception:")
-        print(e)
+        print(f"pause_bot_mod Exception: {e}")
 
     ma_sell = analysis.moving_averages['SELL']
     if ma_sell >= THRESHOLD:
