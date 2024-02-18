@@ -16,3 +16,5 @@ __*__
 
 .creds.yml
 *.config.yml
+
+gg_client_secret.json
