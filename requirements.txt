@@ -2,6 +2,3 @@ python-binance==1.0.19
 colorama==0.4.4
 PyYAML==6.0.1
 tradingview-ta==3.3.0
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
