@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append('..')
 
 import json
@@ -17,9 +18,11 @@ from helpers.handle_creds import (
 )
 
 from colorama import init
+
 init()
 
-# for colourful logging to the console
+
+# for colorful logging to the console
 class txcolors:
     BUY = '\033[92m'
     WARNING = '\033[93m'
@@ -47,10 +50,12 @@ access_key, secret_key = load_correct_creds(parsed_creds)
 
 client = Client(access_key, secret_key)
 
+
 def write_log(logline):
     timestamp = datetime.now().strftime("%d/%m %H:%M:%S")
-    with open(LOG_FILE_PATH,'a+') as f:
+    with open(LOG_FILE_PATH, 'a+') as f:
         f.write(timestamp + ' ' + logline + '\n')
+
 
 with open('../coins_bought.json', 'r') as f:
     coins = json.load(f)
@@ -59,10 +64,10 @@ with open('../coins_bought.json', 'r') as f:
 
     for coin in list(coins):
         sell_coin = client.create_order(
-            symbol = coin,
-            side = 'SELL',
-            type = 'MARKET',
-            quantity = coins[coin]['volume']
+            symbol=coin,
+            side='SELL',
+            type='MARKET',
+            quantity=coins[coin]['volume']
         )
 
         BuyPrice = float(coins[coin]['bought_at'])
@@ -79,9 +84,11 @@ with open('../coins_bought.json', 'r') as f:
 
         if LOG_TRADES:
             timestamp = datetime.now().strftime("%d/%m %H:%M:%S")
-            write_log(f"Sell: {coins[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} Profit: {profit:.2f} {PriceChange:.2f}%")
-    
+            write_log(
+                f"Sell: {coins[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} Profit: {profit:.2f} {PriceChange:.2f}%")
+
     text_color = txcolors.SELL_PROFIT if total_price_change >= 0. else txcolors.SELL_LOSS
-    print(f"Total Profit: {text_color}{total_profit:.2f}{txcolors.DEFAULT}. Total Price Change: {text_color}{total_price_change:.2f}%{txcolors.DEFAULT}")
+    print(
+        f"Total Profit: {text_color}{total_profit:.2f}{txcolors.DEFAULT}. Total Price Change: {text_color}{total_price_change:.2f}%{txcolors.DEFAULT}")
 
 os.remove('../coins_bought.json')
