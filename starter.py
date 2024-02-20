@@ -541,7 +541,7 @@ if __name__ == '__main__':
         print(f'loaded config below\n{json.dumps(parsed_config, indent=4)}')
         print(f'Your credentials have been loaded from {creds_file}')
 
-    # Authenticate with the client, Ensure API key is good before continuing
+    # Authenticate with the client, Ensure an API key is good before continuing
     if AMERICAN_USER:
         client = Client(access_key, secret_key, tld='us')
     else:
@@ -568,14 +568,14 @@ if __name__ == '__main__':
     historical_prices = [None] * (TIME_DIFFERENCE * RECHECK_INTERVAL)
     hsp_head = -1
 
-    # prevent including a coin in volatile_coins if it has already appeared there less than TIME_DIFFERENCE minutes ago
+    # prevent including a coin in volatile_coins if it already appeared there less than TIME_DIFFERENCE minutes ago
     volatility_cooloff = {}
 
     # use separate files for testing and live trading
     if TEST_MODE:
         coins_bought_file_path = 'test_' + coins_bought_file_path
 
-    # if saved coins_bought json file exists and it's not empty then load it
+    # if saved coins_bought json file exists, and it's not empty, then load it
     if os.path.isfile(coins_bought_file_path) and os.stat(coins_bought_file_path).st_size != 0:
         with open(coins_bought_file_path) as file:
             coins_bought = json.load(file)
@@ -583,7 +583,7 @@ if __name__ == '__main__':
     print('Press Ctrl-Q to stop the script')
 
     if not TEST_MODE:
-        if not args.notimeout:  # if no-timeout skip this (fast for dev tests)
+        if not args.notimeout:  # if no-timeout skips this (fast for dev tests)
             print('WARNING: You are using the Mainnet and live funds. Waiting 30 seconds as a security measure')
             time.sleep(30)
 
