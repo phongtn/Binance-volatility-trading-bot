@@ -12,22 +12,20 @@ and that no claims can be made against the developers,
 or others connected with the program.
 """
 
-# use for environment variables
-import os
-
-# use if needed to pass args to external modules
-import sys
-
-# used to create threads & dynamic loading of modules
-import threading
-import importlib
-
 # used for directory handling
 import glob
+import importlib
+import os
+import sys
+import threading
+import json
+import time
+from datetime import datetime, timedelta
 
 # Needed for colorful console output
 # Installation with: python3 -m pip install colorama (Mac/Linux) or pip install colorama (PC)
 from colorama import init
+from utilities.time_util import convert_timestamp
 
 init()
 
@@ -35,16 +33,6 @@ init()
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from requests.exceptions import ReadTimeout, ConnectionError
-
-# used for dates
-from datetime import date, datetime, timedelta
-import time
-
-# used to repeatedly execute the code
-from itertools import count
-
-# used to store trades and sell assets
-import json
 
 # Load helper modules
 from helpers.parameters import (
@@ -55,6 +43,9 @@ from helpers.parameters import (
 from helpers.handle_creds import (
     load_correct_creds, test_api_key
 )
+
+import logging_order
+from repository.trading_log import TradingLog
 
 
 # for colourful logging to the console
@@ -309,66 +300,47 @@ def convert_volume():
     return volume, last_price
 
 
-def buy():
+def place_buy_orders():
     """Place Buy market orders for each volatile coin found"""
     volume, last_price = convert_volume()
     orders = {}
 
     for coin in volume:
-
-        # only buy if the there are no active trades on the coin
+        # only buy if there are no active trades on the coin
         if coin not in coins_bought:
             print(f"{txcolors.BUY}Preparing to buy {volume[coin]} {coin}{txcolors.DEFAULT}")
-
-            if TEST_MODE:
-                orders[coin] = [{
-                    'symbol': coin,
-                    'orderId': 0,
-                    'time': datetime.now().timestamp()
-                }]
-
-                # Log trade
-                if LOG_TRADES:
-                    write_log(f"Buy : {volume[coin]} {coin} - {last_price[coin]['price']}")
-
-                continue
-
             # try to create a real order if the test orders did not raise an exception
             try:
-                buy_limit = client.create_order(
-                    symbol=coin,
-                    side='BUY',
-                    type='MARKET',
-                    quantity=volume[coin]
-                )
+                client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
+            except Exception as exception:
+                client.get_symbol_info(coin)
+                print(f'Place order failed. The reason is: {exception}')
 
-            # error handling here in case position cannot be placed
-            except Exception as e:
-                print(e)
-
-            # run the else block if the position has been placed and return order info
+            if TEST_MODE:
+                orders[coin] = [{'symbol': coin, 'orderId': 0, 'time': datetime.now().timestamp()}]
             else:
-                orders[coin] = client.get_all_orders(symbol=coin, limit=1)
+                orders[coin] = wait_for_order_completion(coin)
+                print('Order returned, saving order to file')
 
-                # binance sometimes returns an empty list, the code will wait here until binance returns the order
-                while orders[coin] == []:
-                    print('Binance is being slow in returning the order, calling the API again...')
-
-                    orders[coin] = client.get_all_orders(symbol=coin, limit=1)
-                    time.sleep(1)
-
-                else:
-                    print('Order returned, saving order to file')
-
-                    # Log trade
-                    if LOG_TRADES:
-                        write_log(f"Buy : {volume[coin]} {coin} - {last_price[coin]['price']}")
-
-
+            if LOG_TRADES:
+                write_log(f"Buy : {volume[coin]} {coin} - {last_price[coin]['price']}")
         else:
             print(f'Signal detected, but there is already an active trade on {coin}')
 
     return orders, last_price, volume
+
+
+def wait_for_order_completion(coin):
+    """in PROD mode, we'll get the latest order from history to ensure the order is placed."""
+    """Wait for the order to be completed and return the order details."""
+    latest_order = client.get_all_orders(symbol=coin, limit=1)
+
+    while not latest_order[coin]:
+        print('Binance is being slow in returning the order, calling the API again...')
+        latest_order = client.get_all_orders(symbol=coin, limit=1)
+        time.sleep(1)
+
+    return latest_order
 
 
 def sell_coins():
@@ -464,10 +436,21 @@ def update_portfolio(orders, last_price, volume):
             'take_profit': TAKE_PROFIT,
         }
 
+        # save to a database
+        if LOG_FILE:
+            order_log = TradingLog(coins_bought[coin].get('symbol'),
+                                   float(coins_bought[coin].get('bought_at')),
+                                   0,
+                                   0,
+                                   coins_bought[coin].get('volume'), 'Buy')
+            order_log.order_time = convert_timestamp(coins_bought[coin].get('timestamp'))
+            js = json.dumps(order_log.__dict__)
+            print(js)
+            logging_order.save_order(order_log)
+
         # save the coins in a json file in the same directory
         with open(coins_bought_file_path, 'w') as file:
             json.dump(coins_bought, file, indent=4)
-
         print(f'Order with id {orders[coin][0]["orderId"]} placed and saved to file')
 
 
@@ -615,7 +598,7 @@ if __name__ == '__main__':
         else:
             print(f'No modules to load {SIGNALLING_MODULES}')
     except Exception as e:
-        print(e)
+        print(f'line 602 {e}')
 
     # seed initial prices
     get_price()
@@ -623,7 +606,7 @@ if __name__ == '__main__':
     CONNECTION_ERROR_COUNT = 0
     while True:
         try:
-            orders, last_price, volume = buy()
+            orders, last_price, volume = place_buy_orders()
             update_portfolio(orders, last_price, volume)
             coins_sold = sell_coins()
             remove_from_portfolio(coins_sold)
