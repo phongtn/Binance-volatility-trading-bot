@@ -25,6 +25,8 @@ from datetime import datetime, timedelta
 # Needed for colorful console output
 # Installation with: python3 -m pip install colorama (Mac/Linux) or pip install colorama (PC)
 from colorama import init
+
+import utilities.time_util
 from utilities.time_util import convert_timestamp
 
 init()
@@ -312,7 +314,7 @@ def place_buy_orders():
             # try to create a real order if the test orders did not raise an exception
             try:
                 result = client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
-                print(result)
+                # print(result)
             except Exception as exception:
                 client.get_symbol_info(coin)
                 print(f'Place order failed. The reason is: {exception}')
@@ -323,7 +325,7 @@ def place_buy_orders():
                 orders[coin] = wait_for_order_completion(coin)
 
             if LOG_TRADES:
-                print('Order returned, saving order to file')
+                # print('Order returned, saving order to file')
                 write_log(f"Buy : {volume[coin]} {coin} - {last_price[coin]['price']}")
         else:
             print(f'Signal detected, but there is already an active trade on {coin}')
@@ -379,18 +381,13 @@ def sell_coins():
         if LastPrice < SL or LastPrice > TP and not USE_TRAILING_STOP_LOSS:
             print(
                 f"{txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}TP or SL reached, selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} : {PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}")
+            logging_order.update_price(coin, LastPrice)
 
-            # try to create a real order
             try:
-
+                # try to create a real order
                 if not TEST_MODE:
                     sell_coins_limit = client.create_order(
-                        symbol=coin,
-                        side='SELL',
-                        type='MARKET',
-                        quantity=coins_bought[coin]['volume']
-
-                    )
+                        symbol=coin, side='SELL', type='MARKET', quantity=coins_bought[coin]['volume'])
 
             # error handling here in case position cannot be placed
             except Exception as e:
@@ -406,12 +403,11 @@ def sell_coins():
                 # Log trade
                 if LOG_TRADES:
                     profit = ((LastPrice - BuyPrice) * coins_sold[coin]['volume']) * (
-                                1 - (TRADING_FEE * 2))  # adjust for trading fee here
+                            1 - (TRADING_FEE * 2))  # adjust for trading fee here
                     write_log(
                         f"Sell: {coins_sold[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} Profit: {profit:.2f} {PriceChange - (TRADING_FEE * 2):.2f}%")
                     session_profit = session_profit + (PriceChange - (TRADING_FEE * 2))
-                # save log
-                logging_order.update_price(coins_sold[coin], LastPrice)
+
             continue
 
         # no action; print once every TIME_DIFFERENCE
@@ -450,6 +446,7 @@ def update_portfolio(orders, last_price, volume):
             order_log.order_time = convert_timestamp(coins_bought[coin].get('timestamp'))
             order_log.latest_price = float(coins_bought[coin].get('bought_at'))
             order_log.total = order_log.buy_price * order_log.amount
+            order_log.last_update_time = utilities.time_util.now()
 
             logging_order.save_order(order_log)
 

@@ -1,3 +1,8 @@
+import json
+
+from aiohttp.payload import Order
+
+import utilities.time_util
 from repository.notion_api import create_page, database_filter, update_page
 from repository.trading_log import TradingLog
 
@@ -19,10 +24,12 @@ def convert_page_to_order(pair: str, page_properties: dict):
     total = page_properties['Total'].get('number', 0)
     side = page_properties['Side']['select']['name']
     order_time = page_properties['Order Time']['date']['start']
+    last_update_time = page_properties['Last Update']['date']['start']
 
     old_order = TradingLog(pair, buy_price, sell_price, amount, total, side)
     old_order.order_time = order_time
     old_order.latest_price = latest_price
+    old_order.last_update_time = last_update_time
     return old_order
 
 
@@ -34,7 +41,8 @@ def convert_order_to_page(log: TradingLog):
         "Total": {"number": log.total},
         "Amount": {"number": log.amount},
         "Side": {"select": {"name": log.side, "color": log.color}},
-        "Order Time": {"date": {"start": log.order_time, "end": None}}
+        "Order Time": {"date": {"start": log.order_time, "end": None}},
+        "Last Update": {"date": {"start": log.last_update_time, "end": None}}
     }
 
 
@@ -56,12 +64,26 @@ def find_pair(pair: str):
         return None
 
 
-def save_order(order: TradingLog):
-    order_log = find_pair(order.pair)
-    if order_log is None:
-        result = create_order(order)
-        print(f'create new order: {result}')
-    else:
-        page_properties = convert_order_to_page(order)
+def update_price(pair: str, price: float):
+    order_log = find_pair(pair)
+    if order_log is not None:
+        order_log.sell_price = price
+        order_log.side = 'Sell'
+        order_log.color = 'green'
+        order_log.last_update_time = utilities.time_util.now()
+
+        page_properties = convert_order_to_page(order_log)
         update_page(order_log.page_id, page_properties)
-        print('update the order')
+        print('update the order to sell')
+
+# update_price('ABCUSDT', 0.045)
+
+def save_order(order: TradingLog):
+    # order_log = find_pair(order.pair)
+    # if order_log is None:
+    result = create_order(order)
+    print(f'create new order: {result}')
+# else:
+#     page_properties = convert_order_to_page(order)
+#     update_page(order_log.page_id, page_properties)
+#     print('update the order')

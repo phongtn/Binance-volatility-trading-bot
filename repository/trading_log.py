@@ -11,5 +11,6 @@ class TradingLog:
         self.total = total
         self.side = side
         self.color = 'pink' if side == 'Buy' else 'green'
-        self.order_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.order_time = ''
+        self.last_update_time = ''
         self.page_id = ''
