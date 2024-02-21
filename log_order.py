@@ -24,8 +24,12 @@ def find_pair(pair: str):
             {"property": "Side", "select": {"equals": "Buy"}}
         ]
     }
-    payload = {"filter": filter_props, "sorts": [{"property": "Last Update", "direction": "descending"}]}
+    payload = {"filter": filter_props, "sorts": [{"timestamp": "last_edited_time", "direction": "descending"}]}
     return database_filter(payload)
+
+
+def update_pair(order: TradingLog):
+    pass
 
 
 if __name__ == '__main__':
