@@ -344,12 +344,12 @@ def wait_for_order_completion(coin):
 
 
 def sell_coins():
-    """sell coins that have reached the STOP LOSS or TAKE PROFIT threshold"""
+    """sell coins that have reached the STOP LOSS or TAKE a PROFIT threshold"""
 
     global hsp_head, session_profit
 
-    last_price = get_price(False)  # don't populate rolling window
-    # last_price = get_price(add_to_historical=True) # don't populate rolling window
+    last_price = get_price(False)  # don't populate a rolling window
+    # last_price = get_price(add_to_historical=True) # don't populate a rolling window
     coins_sold = {}
 
     for coin in list(coins_bought):
@@ -399,7 +399,7 @@ def sell_coins():
             else:
                 coins_sold[coin] = coins_bought[coin]
 
-                # prevent system from buying this coin for the next TIME_DIFFERENCE minutes
+                # prevent a system from buying this coin for the next TIME_DIFFERENCE minutes
                 volatility_cooloff[coin] = datetime.now()
 
                 # Log trade
