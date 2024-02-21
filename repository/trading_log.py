@@ -2,7 +2,7 @@ import datetime
 
 
 class TradingLog:
-    def __init__(self, pair, buy_price, sell_price, amount, total, side):
+    def __init__(self, pair: str, buy_price: float, sell_price: float, amount: float, total: float, side: str):
         self.pair = pair
         self.buy_price = buy_price
         self.latest_price = buy_price

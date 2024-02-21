@@ -26,10 +26,8 @@ def create_page(page_properties: dict):
 def update_page(page_id: str, page_properties: dict):
     url = f"{API_URI}/pages/{page_id}"
     payload = {"properties": page_properties}
-    print(url)
     res = requests.patch(url, json=payload, headers=headers)
     json_response = res.json()
-    print(json_response)
     return json_response
 
 
@@ -37,7 +35,6 @@ def database_filter(payload: dict):
     url = f"{API_URI}/databases/{DATABASE_ID}/query"
     res = requests.post(url, json=payload, headers=headers)
     json_data = res.json()
-    # print(res.status_code)
     return json_data["results"]
 
 
