@@ -311,7 +311,8 @@ def place_buy_orders():
             print(f"{txcolors.BUY}Preparing to buy {volume[coin]} {coin}{txcolors.DEFAULT}")
             # try to create a real order if the test orders did not raise an exception
             try:
-                client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
+                result = client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
+                print(result)
             except Exception as exception:
                 client.get_symbol_info(coin)
                 print(f'Place order failed. The reason is: {exception}')
@@ -320,9 +321,9 @@ def place_buy_orders():
                 orders[coin] = [{'symbol': coin, 'orderId': 0, 'time': datetime.now().timestamp()}]
             else:
                 orders[coin] = wait_for_order_completion(coin)
-                print('Order returned, saving order to file')
 
             if LOG_TRADES:
+                print('Order returned, saving order to file')
                 write_log(f"Buy : {volume[coin]} {coin} - {last_price[coin]['price']}")
         else:
             print(f'Signal detected, but there is already an active trade on {coin}')
@@ -405,10 +406,12 @@ def sell_coins():
                 # Log trade
                 if LOG_TRADES:
                     profit = ((LastPrice - BuyPrice) * coins_sold[coin]['volume']) * (
-                            1 - (TRADING_FEE * 2))  # adjust for trading fee here
+                                1 - (TRADING_FEE * 2))  # adjust for trading fee here
                     write_log(
                         f"Sell: {coins_sold[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} Profit: {profit:.2f} {PriceChange - (TRADING_FEE * 2):.2f}%")
                     session_profit = session_profit + (PriceChange - (TRADING_FEE * 2))
+                # save log
+                logging_order.update_price(coins_sold[coin], LastPrice)
             continue
 
         # no action; print once every TIME_DIFFERENCE
@@ -441,11 +444,13 @@ def update_portfolio(orders, last_price, volume):
             order_log = TradingLog(coins_bought[coin].get('symbol'),
                                    float(coins_bought[coin].get('bought_at')),
                                    0,
+                                   coins_bought[coin].get('volume'),
                                    0,
-                                   coins_bought[coin].get('volume'), 'Buy')
+                                   'Buy')
             order_log.order_time = convert_timestamp(coins_bought[coin].get('timestamp'))
-            js = json.dumps(order_log.__dict__)
-            print(js)
+            order_log.latest_price = float(coins_bought[coin].get('bought_at'))
+            order_log.total = order_log.buy_price * order_log.amount
+
             logging_order.save_order(order_log)
 
         # save the coins in a json file in the same directory
@@ -587,7 +592,7 @@ if __name__ == '__main__':
 
     # load signalling modules
     try:
-        if len(SIGNALLING_MODULES) > 0:
+        if SIGNALLING_MODULES is not None and len(SIGNALLING_MODULES) > 0:
             for module in SIGNALLING_MODULES:
                 print(f'Starting {module}')
                 mymodule[module] = importlib.import_module(module)
@@ -598,7 +603,7 @@ if __name__ == '__main__':
         else:
             print(f'No modules to load {SIGNALLING_MODULES}')
     except Exception as e:
-        print(f'line 602 {e}')
+        print(e)
 
     # seed initial prices
     get_price()
