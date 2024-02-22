@@ -7,7 +7,7 @@ construed as investment advice.Any reference to an investment's past or
 potential performance is not, and should not be construed as, a recommendation
 or as a guarantee of any specific outcome or profit.
 
-By using this program you accept all liabilities,
+By using this program, you accept all liabilities,
 and that no claims can be made against the developers,
 or others connected with the program.
 """
@@ -46,55 +46,21 @@ from helpers.handle_creds import (
     load_correct_creds, test_api_key
 )
 
-import logging_order
+import save_history
 from repository.trading_log import TradingLog
-
-
-# for colourful logging to the console
-class txcolors:
-    BUY = '\033[92m'
-    WARNING = '\033[93m'
-    SELL_LOSS = '\033[91m'
-    SELL_PROFIT = '\033[32m'
-    DIM = '\033[2m\033[35m'
-    DEFAULT = '\033[39m'
-
+from utilities.make_color import St_ampe_dOut, txcolors
 
 # tracks profit/loss each session
 global session_profit
 session_profit = 0
 
-# print with timestamps
-old_out = sys.stdout
-
-
-class St_ampe_dOut:
-    """Stamped stdout."""
-    nl = True
-
-    def write(self, x):
-        """Write function overloaded."""
-        if x == '\n':
-            old_out.write(x)
-            self.nl = True
-        elif self.nl:
-            old_out.write(f'{txcolors.DIM}[{str(datetime.now().replace(microsecond=0))}]{txcolors.DEFAULT} {x}')
-            self.nl = False
-        else:
-            old_out.write(x)
-
-    def flush(self):
-        pass
-
-
-sys.stdout = St_ampe_dOut()
+sys.stdout = St_ampe_dOut(sys.stdout)
 
 
 def get_price(add_to_historical=True):
     """Return the current price for all coins on binance"""
 
     global historical_prices, hsp_head
-
     initial_price = {}
     prices = client.get_all_tickers()
 
@@ -108,9 +74,6 @@ def get_price(add_to_historical=True):
             if PAIR_WITH in coin['symbol'] and all(item not in coin['symbol'] for item in FIATS):
                 current_price = coin['price']
                 initial_price[coin['symbol']] = {'price': current_price, 'time': datetime.now()}
-                # only tracking coin have low denomination
-                # if float(current_price) <= 2 and coin['symbol'] == 'BNBUSDT':
-                #     initial_price[coin['symbol']] = {'price': current_price, 'time': datetime.now()}
 
     if add_to_historical:
         hsp_head += 1
@@ -381,7 +344,7 @@ def sell_coins():
         if LastPrice < SL or LastPrice > TP and not USE_TRAILING_STOP_LOSS:
             print(
                 f"{txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}TP or SL reached, selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} : {PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}")
-            logging_order.update_price(coin, LastPrice)
+            save_history.update_price(coin, LastPrice)
 
             try:
                 # try to create a real order
@@ -448,7 +411,7 @@ def update_portfolio(orders, last_price, volume):
             order_log.total = order_log.buy_price * order_log.amount
             order_log.last_update_time = utilities.time_util.now()
 
-            logging_order.save_order(order_log)
+            save_history.save_order(order_log)
 
         # save the coins in a json file in the same directory
         with open(coins_bought_file_path, 'w') as file:
