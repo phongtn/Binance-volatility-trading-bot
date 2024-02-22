@@ -1,13 +1,14 @@
-import json
-
-from aiohttp.payload import Order
+import logging.config
 
 import utilities.time_util
 from repository.notion_api import create_page, database_filter, update_page
 from repository.trading_log import TradingLog
 
+logging.config.fileConfig('logging.conf')
+logger = logging.getLogger('logging_order')
 
-def create_order(log: TradingLog):
+
+def save_order(log: TradingLog):
     page_properties = convert_order_to_page(log)
     page_create_result = create_page(page_properties)
     if page_create_result['object'] == 'page':
@@ -61,6 +62,7 @@ def find_pair(pair: str):
         order.page_id = page_object['id']
         return order
     else:
+        logger.warning('Could not find order for pair "{}"'.format(pair))
         return None
 
 
@@ -74,16 +76,6 @@ def update_price(pair: str, price: float):
 
         page_properties = convert_order_to_page(order_log)
         update_page(order_log.page_id, page_properties)
-        print('update the order to sell')
+        logger.info('update the order to sell')
 
-# update_price('ABCUSDT', 0.045)
-
-def save_order(order: TradingLog):
-    # order_log = find_pair(order.pair)
-    # if order_log is None:
-    result = create_order(order)
-    print(f'create new order: {result}')
-# else:
-#     page_properties = convert_order_to_page(order)
-#     update_page(order_log.page_id, page_properties)
-#     print('update the order')
+# update_price('ABfCUSDT', 0.045)
