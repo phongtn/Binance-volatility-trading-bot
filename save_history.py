@@ -1,11 +1,8 @@
-import logging.config
-
 import utilities.time_util
 from repository.notion_api import create_page, database_filter, update_page
 from repository.trading_log import TradingLog
 
-logging.config.fileConfig('logging.conf')
-logger = logging.getLogger('logging_order')
+from base_logger import logger
 
 
 def save_order(log: TradingLog):
@@ -78,4 +75,4 @@ def update_price(pair: str, price: float):
         update_page(order_log.page_id, page_properties)
         logger.info('update the order to sell')
 
-update_price('ABfCUSDT', 0.045)
+# update_price('ABfCUSDT', 0.045)
