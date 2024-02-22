@@ -78,4 +78,4 @@ def update_price(pair: str, price: float):
         update_page(order_log.page_id, page_properties)
         logger.info('update the order to sell')
 
-# update_price('ABfCUSDT', 0.045)
+update_price('ABfCUSDT', 0.045)
