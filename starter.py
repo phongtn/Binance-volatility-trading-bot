@@ -226,7 +226,7 @@ def pause_bot():
 
 
 def convert_volume():
-    '''Converts the volume given in QUANTITY from USDT to the each coin's volume'''
+    """Converts the volume given in QUANTITY from USDT to the coin's volume"""
 
     volatile_coins, number_of_coins, last_price = wait_for_price()
     lot_size = {}
@@ -239,7 +239,7 @@ def convert_volume():
         # while XRP is only 1
         try:
             info = client.get_symbol_info(coin)
-            step_size = info['filters'][2]['stepSize']
+            step_size = info['filters'][1]['stepSize']
             lot_size[coin] = step_size.index('1') - 1
 
             if lot_size[coin] < 0:
@@ -274,21 +274,19 @@ def place_buy_orders():
         # only buy if there are no active trades on the coin
         if coin not in coins_bought:
             print(f"{txcolors.BUY}Preparing to buy {volume[coin]} {coin}{txcolors.DEFAULT}")
-            # try to create a real order if the test orders did not raise an exception
-            try:
-                result = client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
-                # print(result)
-            except Exception as exception:
-                client.get_symbol_info(coin)
-                print(f'Place order failed. The reason is: {exception}')
 
             if TEST_MODE:
                 orders[coin] = [{'symbol': coin, 'orderId': 0, 'time': datetime.now().timestamp()}]
             else:
+                try:
+                    result = client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
+                    print(f'Order placed result: {result}')
+                except Exception as exception:
+                    print(f'Place order failed. The reason is: {exception}')
+
                 orders[coin] = wait_for_order_completion(coin)
 
             if LOG_TRADES:
-                # print('Order returned, saving order to file')
                 write_log(f"Buy : {volume[coin]} {coin} - {last_price[coin]['price']}")
         else:
             print(f'Signal detected, but there is already an active trade on {coin}')
@@ -344,9 +342,10 @@ def sell_coins():
         if LastPrice < SL or LastPrice > TP and not USE_TRAILING_STOP_LOSS:
             print(
                 f"{txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}TP or SL reached, selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} : {PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}")
-            save_history.update_price(coin, LastPrice)
 
             try:
+                if LOG_FILE:
+                    save_history.update_price(coin, LastPrice)
                 # try to create a real order
                 if not TEST_MODE:
                     sell_coins_limit = client.create_order(
@@ -498,7 +497,7 @@ if __name__ == '__main__':
             client.API_URL = 'https://testnet.binance.vision/api'
 
     # If the users have a bad / incorrect API key.
-    # this will stop the script from starting, and display a helpful error.
+    # This will stop the script from starting and display a helpful error.
     api_ready, msg = test_api_key(client, BinanceAPIException)
     if api_ready is not True:
         exit(f'{txcolors.SELL_LOSS}{msg}{txcolors.DEFAULT}')
@@ -561,7 +560,7 @@ if __name__ == '__main__':
                 t.start()
                 time.sleep(2)
         else:
-            print(f'No modules to load {SIGNALLING_MODULES}')
+            print(f'No modules to load')
     except Exception as e:
         print(e)
 
