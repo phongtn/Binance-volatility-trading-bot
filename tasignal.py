@@ -1,11 +1,7 @@
-from tradingview_ta import TA_Handler, Interval, Exchange
-# use for environment variables
 import os
-# use if needed to pass args to external modules
-import sys
-# used for directory handling
-import glob
 import time
+
+from tradingview_ta import TA_Handler, Interval
 
 MY_EXCHANGE = 'BINANCE'
 MY_SCREENER = 'CRYPTO'
@@ -120,6 +116,8 @@ def start_tail():
             print(f'{len(signal_coins)} coins above {TA_BUY_THRESHOLD} threshold on both timeframes')
         print(f'Waiting {TIME_TO_WAIT} minutes for next analysis')
         time.sleep((TIME_TO_WAIT * 60))
+
+
 
 
 # if __name__ == '__main__':
