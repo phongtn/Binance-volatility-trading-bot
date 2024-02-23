@@ -49,6 +49,7 @@ from helpers.handle_creds import (
 import save_history
 from repository.trading_log import TradingLog
 from utilities.make_color import St_ampe_dOut, txcolors
+from tasignal import ta_signal_check
 
 # tracks profit/loss each session
 global session_profit
@@ -317,39 +318,37 @@ def sell_coins():
     coins_sold = {}
 
     for coin in list(coins_bought):
-        # define stop loss and take profit
-        TP = float(coins_bought[coin]['bought_at']) + (
-                float(coins_bought[coin]['bought_at']) * coins_bought[coin]['take_profit']) / 100
-        SL = float(coins_bought[coin]['bought_at']) + (
-                float(coins_bought[coin]['bought_at']) * coins_bought[coin]['stop_loss']) / 100
-
-        LastPrice = float(last_price[coin]['price'])
+        coin_latest_price = float(last_price[coin]['price'])
         BuyPrice = float(coins_bought[coin]['bought_at'])
-        PriceChange = float((LastPrice - BuyPrice) / BuyPrice * 100)
+        PriceChange = float((coin_latest_price - BuyPrice) / BuyPrice * 100)
+
+        # define stop loss and take profit
+        price_take_profit = float(BuyPrice) + (float(BuyPrice) * coins_bought[coin]['take_profit']) / 100
+        price_stop_loss = float(BuyPrice) + (float(BuyPrice) * coins_bought[coin]['stop_loss']) / 100
 
         # check that the price is above the take profit and readjust SL and TP accordingly if trialing stop loss used
-        if LastPrice > TP and USE_TRAILING_STOP_LOSS:
+        if coin_latest_price > price_take_profit and USE_TRAILING_STOP_LOSS:
 
             # increasing TP by TRAILING_TAKE_PROFIT (essentially next time to readjust SL)
             coins_bought[coin]['take_profit'] = PriceChange + TRAILING_TAKE_PROFIT
             coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
-            if DEBUG: print(
-                f"{coin} TP reached, adjusting TP {coins_bought[coin]['take_profit']:.2f}  and SL {coins_bought[coin]['stop_loss']:.2f} accordingly to lock-in profit")
+            if DEBUG:
+                print(f"{coin} TP reached, adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
+                      f"and SL {coins_bought[coin]['stop_loss']:.2f} accordingly to lock-in profit")
             continue
 
         # check that the price is below the stop loss or above take profit (if trailing stop loss not used) and sell
         # if this is the case
-        if LastPrice < SL or LastPrice > TP and not USE_TRAILING_STOP_LOSS:
+        if coin_latest_price < price_stop_loss or coin_latest_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
             print(
-                f"{txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}TP or SL reached, selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} : {PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}")
+                f"{txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}TP or SL reached, "
+                f"selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {coin_latest_price} : {PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}")
 
             try:
                 if LOG_FILE:
-                    save_history.update_price(coin, LastPrice)
-                # try to create a real order
+                    save_history.update_price(coin, coin_latest_price)
                 if not TEST_MODE:
-                    sell_coins_limit = client.create_order(
-                        symbol=coin, side='SELL', type='MARKET', quantity=coins_bought[coin]['volume'])
+                    client.create_order(symbol=coin, side='SELL', type='MARKET', quantity=coins_bought[coin]['volume'])
 
             # error handling here in case position cannot be placed
             except Exception as e:
@@ -364,10 +363,10 @@ def sell_coins():
 
                 # Log trade
                 if LOG_TRADES:
-                    profit = ((LastPrice - BuyPrice) * coins_sold[coin]['volume']) * (
+                    profit = ((coin_latest_price - BuyPrice) * coins_sold[coin]['volume']) * (
                             1 - (TRADING_FEE * 2))  # adjust for trading fee here
                     write_log(
-                        f"Sell: {coins_sold[coin]['volume']} {coin} - {BuyPrice} - {LastPrice} Profit: {profit:.2f} {PriceChange - (TRADING_FEE * 2):.2f}%")
+                        f"Sell: {coins_sold[coin]['volume']} {coin} - {BuyPrice} - {coin_latest_price} Profit: {profit:.2f} {PriceChange - (TRADING_FEE * 2):.2f}%")
                     session_profit = session_profit + (PriceChange - (TRADING_FEE * 2))
 
             continue
@@ -376,7 +375,7 @@ def sell_coins():
         if hsp_head == 1:
             if len(coins_bought) > 0:
                 print(
-                    f'TP or SL not yet reached, not selling {coin} for now {BuyPrice} - {LastPrice} : {txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}{PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}')
+                    f'TP or SL not yet reached, not selling {coin} for now {BuyPrice} - {coin_latest_price} : {txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}{PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}')
 
     if hsp_head == 1 and len(coins_bought) == 0: print(f'Not holding any coins')
 
@@ -478,9 +477,9 @@ if __name__ == '__main__':
     TRAILING_TAKE_PROFIT = parsed_config['trading_options']['TRAILING_TAKE_PROFIT']
     TRADING_FEE = parsed_config['trading_options']['TRADING_FEE']
     SIGNALLING_MODULES = parsed_config['trading_options']['SIGNALLING_MODULES']
-    if DEBUG_SETTING or args.debug:
-        DEBUG = True
-
+    TA_BUY_THRESHOLD = parsed_config['trading_options']['TA_BUY_THRESHOLD']
+    TA_SELL_THRESHOLD = parsed_config['trading_options']['TA_SELL_THRESHOLD']
+    DEBUG = DEBUG_SETTING or args.debug
     # Load creds for correct environment
     access_key, secret_key = load_correct_creds(parsed_creds)
 
