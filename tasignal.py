@@ -1,3 +1,4 @@
+import datetime
 import os
 import time
 
@@ -121,5 +122,7 @@ def start_tail():
 
 
 # if __name__ == '__main__':
-#     print(ta_signal_check("BNBUSDT", 2))
-    # start_tail()
+#     ts = time.time()
+#     time.sleep(3)
+#     seconds_elapsed = time.time() - ts
+#     print("This took %.2f seconds" % seconds_elapsed)

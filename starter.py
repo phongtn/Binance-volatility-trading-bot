@@ -20,6 +20,7 @@ import sys
 import threading
 import json
 import time
+import signal
 from datetime import datetime, timedelta
 
 # Needed for colorful console output
@@ -342,35 +343,9 @@ def sell_coins():
         # check that the price is below the stop loss or above take profit (if trailing stop loss not used) and sell
         # if this is the case
         if coin_latest_price < price_stop_loss or coin_latest_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
-            print(
-                f"{txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}TP or SL reached, "
-                f"selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {coin_latest_price} : {PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}")
-
-            try:
-                if LOG_FILE:
-                    save_history.update_price(coin, coin_latest_price)
-                if not TEST_MODE:
-                    client.create_order(symbol=coin, side='SELL', type='MARKET', quantity=coins_bought[coin]['volume'])
-
-            # error handling here in case position cannot be placed
-            except Exception as e:
-                print(e)
-
-            # run the else block if coin has been sold and create a dict for each coin sold
-            else:
-                coins_sold[coin] = coins_bought[coin]
-
-                # prevent a system from buying this coin for the next TIME_DIFFERENCE minutes
-                volatility_cooloff[coin] = datetime.now()
-
-                # Log trade
-                if LOG_TRADES:
-                    profit = ((coin_latest_price - BuyPrice) * coins_sold[coin]['volume']) * (
-                            1 - (TRADING_FEE * 2))  # adjust for trading fee here
-                    write_log(
-                        f"Sell: {coins_sold[coin]['volume']} {coin} - {BuyPrice} - {coin_latest_price} Profit: {profit:.2f} {PriceChange - (TRADING_FEE * 2):.2f}%")
-                    session_profit = session_profit + (PriceChange - (TRADING_FEE * 2))
-
+            coins_sold[coin] = coins_bought[coin]
+            profit = place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, coins_sold[coin]['volume'])
+            session_profit = session_profit + profit
             continue
 
         # no action; print once every TIME_DIFFERENCE
@@ -382,6 +357,41 @@ def sell_coins():
     if hsp_head == 1 and len(coins_bought) == 0: print(f'Not holding any coins')
 
     return coins_sold
+
+
+def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, volume):
+    print(f"{txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}TP or SL reached, "
+          f"selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {coin_latest_price} : {PriceChange - (TRADING_FEE * 2):.2f}% "
+          f"Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}")
+
+    try:
+        if LOG_FILE:
+            save_history.update_price(coin, coin_latest_price)
+        if not TEST_MODE:
+            client.create_order(symbol=coin, side='SELL', type='MARKET', quantity=coins_bought[coin]['volume'])
+
+    # error handling here in case position cannot be placed
+    except Exception as e:
+        print(e)
+
+    # run the else block if coin has been sold and create a dict for each coin sold
+    else:
+        # coins_sold[coin] = coins_bought[coin]
+
+        # prevent a system from buying this coin for the next TIME_DIFFERENCE minutes
+        volatility_cooloff[coin] = datetime.now()
+
+        # Log trade
+        if LOG_TRADES:
+            profit = ((coin_latest_price - BuyPrice) * volume) * (
+                    1 - (TRADING_FEE * 2))  # adjust for trading fee here
+            write_log(
+                f"Sell: {volume} {coin} - {BuyPrice} - {coin_latest_price} "
+                f"Profit: {profit:.2f} {PriceChange - (TRADING_FEE * 2):.2f}%")
+            # session_profit = session_profit + (PriceChange - (TRADING_FEE * 2))
+            w_profit = PriceChange - (TRADING_FEE * 2)
+            # print(f'profit {profit} and w_profit {w_profit} ')
+    return w_profit
 
 
 def update_portfolio(orders, last_price, volume):
@@ -434,6 +444,23 @@ def write_log(logline):
         f.write(timestamp + ' ' + logline + '\n')
 
 
+def signal_handler(sig, frame):
+    global session_profit
+    print('Receive signal to quit, sell all coins now')
+    last_price = get_price(False)
+
+    for coin in list(coins_bought):
+        coin_latest_price = float(last_price[coin]['price'])
+        BuyPrice = float(coins_bought[coin]['bought_at'])
+        PriceChange = float((coin_latest_price - BuyPrice) / BuyPrice * 100)
+
+        profit = place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, coins_bought[coin]['volume'])
+        session_profit = session_profit + profit
+
+    print(f'Working...Session profit:{session_profit:.2f}% Est:${(QUANTITY * session_profit) / 100:.2f}')
+    sys.exit(0)
+
+
 if __name__ == '__main__':
 
     # Load arguments then parse settings
@@ -453,7 +480,7 @@ if __name__ == '__main__':
     parsed_creds = load_config(creds_file)
 
     # Default no debugging
-    DEBUG = False
+    # DEBUG = False
 
     # Load system vars
     TEST_MODE = parsed_config['script_options']['TEST_MODE']
@@ -481,6 +508,7 @@ if __name__ == '__main__':
     SIGNALLING_MODULES = parsed_config['trading_options']['SIGNALLING_MODULES']
     TA_BUY_THRESHOLD = parsed_config['trading_options']['TA_BUY_THRESHOLD']
     TA_SELL_THRESHOLD = parsed_config['trading_options']['TA_SELL_THRESHOLD']
+
     DEBUG = DEBUG_SETTING or args.debug
     # Load creds for correct environment
     access_key, secret_key = load_correct_creds(parsed_creds)
@@ -528,8 +556,6 @@ if __name__ == '__main__':
         with open(coins_bought_file_path) as file:
             coins_bought = json.load(file)
 
-    print('Press Ctrl-Q to stop the script')
-
     if not TEST_MODE:
         if not args.notimeout:  # if no-timeout skips this (fast for dev tests)
             print('WARNING: You are using the Mainnet and live funds. Waiting 30 seconds as a security measure')
@@ -569,6 +595,8 @@ if __name__ == '__main__':
     get_price()
     READ_TIMEOUT_COUNT = 0
     CONNECTION_ERROR_COUNT = 0
+    signal.signal(signal.SIGINT, signal_handler)
+    print('Press Ctrl-C to stop the script')
     while True:
         try:
             orders, last_price, volume = place_buy_orders()
