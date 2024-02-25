@@ -388,10 +388,7 @@ def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, volume):
             write_log(
                 f"Sell: {volume} {coin} - {BuyPrice} - {coin_latest_price} "
                 f"Profit: {profit:.2f} {PriceChange - (TRADING_FEE * 2):.2f}%")
-            # session_profit = session_profit + (PriceChange - (TRADING_FEE * 2))
-            w_profit = PriceChange - (TRADING_FEE * 2)
-            # print(f'profit {profit} and w_profit {w_profit} ')
-    return w_profit
+    return PriceChange - (TRADING_FEE * 2)
 
 
 def update_portfolio(orders, last_price, volume):
