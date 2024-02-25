@@ -119,10 +119,12 @@ def start_tail():
         time.sleep((TIME_TO_WAIT * 60))
 
 
-
-
-# if __name__ == '__main__':
-#     ts = time.time()
-#     time.sleep(3)
-#     seconds_elapsed = time.time() - ts
-#     print("This took %.2f seconds" % seconds_elapsed)
+if __name__ == '__main__':
+    coin_latest_price = 6
+    price_stop_loss = 3
+    price_take_profit = 5
+    USE_TRAILING_STOP_LOSS = False
+    if coin_latest_price < price_stop_loss or coin_latest_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
+        print('ok')
+    else:
+        print('false')
