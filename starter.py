@@ -21,18 +21,11 @@ import threading
 import json
 import time
 import signal
-from datetime import datetime, timedelta
-
-# Needed for colorful console output
-# Installation with: python3 -m pip install colorama (Mac/Linux) or pip install colorama (PC)
-from colorama import init
-
+import save_history
 import utilities.time_util
+
+from datetime import datetime, timedelta
 from utilities.time_util import convert_timestamp
-
-init()
-
-# needed for the binance API / websockets / Exception handling
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from requests.exceptions import ReadTimeout, ConnectionError
@@ -47,10 +40,14 @@ from helpers.handle_creds import (
     load_correct_creds, test_api_key
 )
 
-import save_history
 from repository.trading_log import TradingLog
 from utilities.make_color import St_ampe_dOut, txcolors
 from tasignal import ta_signal_check
+
+# Needed for colorful console output
+# Installation with: python3 -m pip install colorama (Mac/Linux) or pip install colorama (PC)
+from colorama import init
+init()
 
 # tracks profit/loss each session
 global session_profit
@@ -104,11 +101,10 @@ def wait_for_price():
     pause_bot()
 
     # print(historical_prices[hsp_head])
-    if historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'] > datetime.now() - timedelta(
-            minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)):
+    if (historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'] >
+            datetime.now() - timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL))):
         # sleep for exactly the amount of time required
-        time.sleep((timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) - (
-                datetime.now() - historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'])).total_seconds())
+        time.sleep((timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) - (datetime.now() - historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'])).total_seconds())
 
     print(f'Working...Session profit:{session_profit:.2f}% Est:${(QUANTITY * session_profit) / 100:.2f}')
 
@@ -326,10 +322,8 @@ def sell_coins():
         PriceChange = float((coin_last_price - BuyPrice) / BuyPrice * 100)
 
         # define stop loss and take profit
-        price_take_profit = float(BuyPrice) + (float(BuyPrice) * coins_bought[coin]['take_profit']) / 100
-        price_stop_loss = float(BuyPrice) + (float(BuyPrice) * coins_bought[coin]['stop_loss']) / 100
-        # stop loss based on the latest price
-        # price_stop_loss = float(coin_last_price) + (float(coin_last_price) * coins_bought[coin]['stop_loss']) / 100
+        price_take_profit = BuyPrice + (BuyPrice * coins_bought[coin]['take_profit']) / 100
+        price_stop_loss = BuyPrice + (BuyPrice * coins_bought[coin]['stop_loss']) / 100
 
         # check that the price is above the take profit and readjust SL and TP accordingly if trialing stop loss used
         if coin_last_price > price_take_profit and USE_TRAILING_STOP_LOSS:
@@ -338,8 +332,9 @@ def sell_coins():
             coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
             coins_bought[coin]['take_profit'] = PriceChange + TRAILING_TAKE_PROFIT
             if DEBUG:
-                print(f"{coin} TP reached {BuyPrice}/{coin_last_price}, change {PriceChange}. adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
-                      f"and SL {coins_bought[coin]['stop_loss']:.2f} accordingly to lock-in profit")
+                print(
+                    f"{coin} TP reached {BuyPrice}/{coin_last_price}, change {PriceChange}. adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
+                    f"and SL {coins_bought[coin]['stop_loss']:.2f} accordingly to lock-in profit")
             continue
 
         # check that the price is below the stop loss or above take profit (if trailing stop loss not used) and sell
@@ -600,8 +595,8 @@ if __name__ == '__main__':
         try:
             orders, last_price, volume = place_buy_orders()
             update_portfolio(orders, last_price, volume)
-            coins_sold = sell_coins()
-            remove_from_portfolio(coins_sold)
+            list_coins_sold = sell_coins()
+            remove_from_portfolio(list_coins_sold)
         except ReadTimeout as rt:
             READ_TIMEOUT_COUNT += 1
             print(f"{txcolors.WARNING}We got a timeout error from from binance. Going to re-loop. "
