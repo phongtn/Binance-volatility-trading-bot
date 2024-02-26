@@ -321,30 +321,32 @@ def sell_coins():
     coins_sold = {}
 
     for coin in list(coins_bought):
-        coin_latest_price = float(last_price[coin]['price'])
+        coin_last_price = float(last_price[coin]['price'])
         BuyPrice = float(coins_bought[coin]['bought_at'])
-        PriceChange = float((coin_latest_price - BuyPrice) / BuyPrice * 100)
+        PriceChange = float((coin_last_price - BuyPrice) / BuyPrice * 100)
 
         # define stop loss and take profit
         price_take_profit = float(BuyPrice) + (float(BuyPrice) * coins_bought[coin]['take_profit']) / 100
         price_stop_loss = float(BuyPrice) + (float(BuyPrice) * coins_bought[coin]['stop_loss']) / 100
+        # stop loss based on the latest price
+        # price_stop_loss = float(coin_last_price) + (float(coin_last_price) * coins_bought[coin]['stop_loss']) / 100
 
         # check that the price is above the take profit and readjust SL and TP accordingly if trialing stop loss used
-        if coin_latest_price > price_take_profit and USE_TRAILING_STOP_LOSS:
+        if coin_last_price > price_take_profit and USE_TRAILING_STOP_LOSS:
 
             # increasing TP by TRAILING_TAKE_PROFIT (essentially next time to readjust SL)
-            coins_bought[coin]['take_profit'] = PriceChange + TRAILING_TAKE_PROFIT
             coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
+            coins_bought[coin]['take_profit'] = PriceChange + TRAILING_TAKE_PROFIT
             if DEBUG:
-                print(f"{coin} TP reached, adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
+                print(f"{coin} TP reached {BuyPrice}/{coin_last_price}, change {PriceChange}. adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
                       f"and SL {coins_bought[coin]['stop_loss']:.2f} accordingly to lock-in profit")
             continue
 
         # check that the price is below the stop loss or above take profit (if trailing stop loss not used) and sell
         # if this is the case
-        if coin_latest_price < price_stop_loss or coin_latest_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
+        if coin_last_price < price_stop_loss or coin_last_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
             coins_sold[coin] = coins_bought[coin]
-            profit = place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, coins_sold[coin]['volume'])
+            profit = place_order_sell(PriceChange, BuyPrice, coin, coin_last_price, coins_sold[coin]['volume'])
             session_profit = session_profit + profit
             continue
 
@@ -352,7 +354,7 @@ def sell_coins():
         if hsp_head == 1:
             if len(coins_bought) > 0:
                 print(
-                    f'TP or SL not yet reached, not selling {coin} for now {BuyPrice} - {coin_latest_price} : {txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}{PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}')
+                    f'TP or SL not yet reached, not selling {coin} for now {BuyPrice} - {coin_last_price} : {txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}{PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}')
 
     if hsp_head == 1 and len(coins_bought) == 0: print(f'Not holding any coins')
 
