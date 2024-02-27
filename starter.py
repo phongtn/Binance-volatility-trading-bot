@@ -273,26 +273,28 @@ def place_buy_orders():
     orders = {}
 
     for coin in volume:
-        # only buy if there are no active trades on the coin
+        ta_result = ta_signal_check(coin, TA_BUY_THRESHOLD)
+        if not ta_result:
+            print(f'TA signal NOT good, Discard the BUY order {coin}')
+            continue
+
         if coin not in coins_bought:
             print(f"{txcolors.BUY}Preparing to buy {volume[coin]} {coin}{txcolors.DEFAULT}")
-            ta_result = ta_signal_check(coin, TA_BUY_THRESHOLD)
-            if ta_result:
-                if TEST_MODE:
-                    orders[coin] = [{'symbol': coin, 'orderId': 0, 'time': datetime.now().timestamp()}]
-                else:
-                    try:
-                        result = client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
-                        print(f'Order placed result: {result}')
-                    except Exception as exception:
-                        print(f'Place order failed. The reason is: {exception}')
-                    orders[coin] = wait_for_order_completion(coin)
-                if LOG_TRADES:
-                    write_log(f"Buy : {volume[coin]} {coin} - {last_price[coin]['price']}")
+            if LOG_TRADES:
+                write_log(f"Buy : {volume[coin]} {coin} - {last_price[coin]['price']}")
+
+            # Place the BUY order
+            if TEST_MODE:
+                orders[coin] = [{'symbol': coin, 'orderId': 0, 'time': datetime.now().timestamp()}]
             else:
-                print(f'TA signal NOT good, Discard the order {coin}')
+                try:
+                    client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
+                except Exception as exception:
+                    print(f'Place order failed. The reason is: {exception}')
+                orders[coin] = wait_for_order_completion(coin)
+                print(f'Order placed result: {orders[coin]}')
         else:
-            print(f'Signal detected, but there is already an active trade on {coin}. {coins_bought[coin]}')
+            print(f'Signal detected, but there is already an active trade on {coin}.')
 
     return orders, last_price, volume
 
