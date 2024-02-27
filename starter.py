@@ -294,7 +294,7 @@ def place_buy_orders():
             new_volume = coins_bought[coin]['volume'] + volume[coin]
             new_price = (float(coins_bought[coin]['bought_at']) + float(last_price[coin]['price'])) / 2
             orders[coin] = [{'symbol': coin, 'orderId': 0,
-                             'time': datetime.now().timestamp(),
+                             'timestamp': datetime.now().timestamp(),
                              'bought_at': new_price,
                              'volume': new_volume,
                              'stop_loss': coins_bought[coin]['stop_loss'],
@@ -304,7 +304,7 @@ def place_buy_orders():
             print(f'New log {orders[coin]}')
         else:
             new_order[0]['volume'] = volume[coin]
-            new_order[0]['time'] = datetime.now().timestamp()
+            new_order[0]['timestamp'] = datetime.now().timestamp()
             new_order[0]['stop_loss'] = -STOP_LOSS
             new_order[0]['take_profit'] = TAKE_PROFIT
             new_order[0]['bought_at'] = last_price[coin]['price']
