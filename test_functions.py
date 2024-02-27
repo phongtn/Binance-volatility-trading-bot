@@ -36,7 +36,6 @@ access_key, secret_key = load_correct_creds(parsed_creds)
 client = Client(access_key, secret_key)
 client.API_URL = 'https://testnet.binance.vision/api'
 
-
 def test_tsl(coin: str, buy_price: float, price: float, USE_TRAILING_STOP_LOSS=True):
     TRADING_FEE = 0.075
     BuyPrice = float(buy_price)
@@ -44,8 +43,8 @@ def test_tsl(coin: str, buy_price: float, price: float, USE_TRAILING_STOP_LOSS=T
 
     coin_latest_price = float(all_latest_price[coin]['price'])
 
-    TRAILING_TAKE_PROFIT = 0.5
-    TRAILING_STOP_LOSS = 0.6
+    TRAILING_TAKE_PROFIT = 0.6
+    TRAILING_STOP_LOSS = 0.7
 
     # change percent
     PriceChange = round(float((coin_latest_price - BuyPrice) / BuyPrice * 100), 2)
@@ -59,8 +58,8 @@ def test_tsl(coin: str, buy_price: float, price: float, USE_TRAILING_STOP_LOSS=T
     print(coins_bought)
     # # check that the price is above the take profit and readjust SL and TP accordingly if trialing stop loss used
     if coin_latest_price > price_take_profit and USE_TRAILING_STOP_LOSS:
-        coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
         coins_bought[coin]['take_profit'] = PriceChange + TRAILING_TAKE_PROFIT
+        coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
         print(coins_bought)
         print(
             f"{coin} TP reached {BuyPrice}/{coin_latest_price}, change {PriceChange}%. Adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
@@ -81,7 +80,7 @@ def simulate_price_change(coin: str):
         print('------------------------------------------')
         time.sleep(3)
 
-    test_tsl('BTC', buy_price, 10.1)
+    test_tsl(coin, buy_price, 10.4)
 
 
 def get_balance():
@@ -91,14 +90,6 @@ def get_balance():
         logger.info(f'BNB: {free}')
     except Exception as exception:
         print(f'get account balance failed. The reason is: {exception}')
-
-
-def get_price(pair: str):
-    params = {
-        'symbol': 'BTCUSDT',
-        'windowSize': '3m'
-    }
-    return client._get('ticker', data=params, version=client.PRIVATE_API_VERSION)
 
 
 def get_little_coins(limit: int):
@@ -130,6 +121,7 @@ class BinanceAPIWrapper(Client):
 if __name__ == '__main__':
     # simulate_price_change('BTC')
     # get_little_coins(10)
-    sub_client = BinanceAPIWrapper()
-    result = sub_client.rolling_window_price_change('BTCUSDT', '1m')
-    print(result)
+    # sub_client = BinanceAPIWrapper()
+    # result = sub_client.rolling_window_price_change('BTCUSDT', '1m')
+    # print(result)
+    simulate_price_change('BTC')

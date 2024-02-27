@@ -29,6 +29,7 @@ from utilities.time_util import convert_timestamp
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from requests.exceptions import ReadTimeout, ConnectionError
+from binance_api_wrapper import BinanceAPIWrapper
 
 # Load helper modules
 from helpers.parameters import (
@@ -47,6 +48,7 @@ from tasignal import ta_signal_check
 # Needed for colorful console output
 # Installation with: python3 -m pip install colorama (Mac/Linux) or pip install colorama (PC)
 from colorama import init
+
 init()
 
 # tracks profit/loss each session
@@ -104,7 +106,8 @@ def wait_for_price():
     if (historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'] >
             datetime.now() - timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL))):
         # sleep for exactly the amount of time required
-        time.sleep((timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) - (datetime.now() - historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'])).total_seconds())
+        time.sleep((timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) - (
+                datetime.now() - historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'])).total_seconds())
 
     print(f'Working...Session profit:{session_profit:.2f}% Est:${(QUANTITY * session_profit) / 100:.2f}')
 
@@ -329,8 +332,8 @@ def sell_coins():
         if coin_last_price > price_take_profit and USE_TRAILING_STOP_LOSS:
 
             # increasing TP by TRAILING_TAKE_PROFIT (essentially next time to readjust SL)
-            coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
             coins_bought[coin]['take_profit'] = PriceChange + TRAILING_TAKE_PROFIT
+            coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
             if DEBUG:
                 print(
                     f"{coin} TP reached {BuyPrice}/{coin_last_price}, change {PriceChange}. adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
@@ -513,11 +516,13 @@ if __name__ == '__main__':
 
     # Authenticate with the client, Ensure an API key is good before continuing
     if AMERICAN_USER:
-        client = Client(access_key, secret_key, tld='us')
+        client = BinanceAPIWrapper(access_key, secret_key, tld='us')
     else:
-        client = Client(access_key, secret_key)
+        client = BinanceAPIWrapper(access_key, secret_key)
         if TEST_MODE:
             client.API_URL = 'https://testnet.binance.vision/api'
+    # wrapper_client = BinanceAPIWrapper()
+    print(client.rolling_window_price_change('BTCUSDT', '1m'))
 
     # If the users have a bad / incorrect API key.
     # This will stop the script from starting and display a helpful error.
