@@ -278,23 +278,37 @@ def place_buy_orders():
             print(f'TA signal NOT good, Discard the BUY order {coin}')
             continue
 
-        if coin not in coins_bought:
-            print(f"{txcolors.BUY}Preparing to buy {volume[coin]} {coin}{txcolors.DEFAULT}")
-            if LOG_TRADES:
-                write_log(f"Buy : {volume[coin]} {coin} - {last_price[coin]['price']}")
-
-            # Place the BUY order
-            if TEST_MODE:
-                orders[coin] = [{'symbol': coin, 'orderId': 0, 'time': datetime.now().timestamp()}]
-            else:
-                try:
-                    client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
-                except Exception as exception:
-                    print(f'Place order failed. The reason is: {exception}')
-                orders[coin] = wait_for_order_completion(coin)
-                print(f'Order placed result: {orders[coin]}')
+        # Place the BUY order
+        if TEST_MODE:
+            new_order = [{'symbol': coin, 'orderId': 0, 'time': datetime.now().timestamp()}]
         else:
-            print(f'Signal detected, but there is already an active trade on {coin}.')
+            try:
+                client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
+            except Exception as exception:
+                print(f'Place order failed. The reason is: {exception}')
+            new_order = wait_for_order_completion(coin)
+            print(f'Order placed result: {orders[coin]}')
+
+        print(f"{txcolors.BUY}Preparing to buy {volume[coin]} {coin}{txcolors.DEFAULT}")
+        if coin in coins_bought:
+            new_volume = coins_bought[coin]['volume'] + volume[coin]
+            new_price = (float(coins_bought[coin]['bought_at']) + float(last_price[coin]['price'])) / 2
+            orders[coin] = [{'symbol': coin, 'orderId': 0,
+                             'time': datetime.now().timestamp(),
+                             'bought_at': new_price,
+                             'volume': new_volume,
+                             'stop_loss': coins_bought[coin]['stop_loss'],
+                             'take_profit': coins_bought[coin]['take_profit']}]
+            print(f'There is already an active trade on {coin}. Buy more and re calculate AVG price')
+            print(f'Old log {coins_bought[coin]}')
+            print(f'New log {orders[coin]}')
+        else:
+            new_order[0]['volume'] = volume[coin]
+            new_order[0]['time'] = datetime.now().timestamp()
+            new_order[0]['stop_loss'] = -STOP_LOSS
+            new_order[0]['take_profit'] = TAKE_PROFIT
+            new_order[0]['bought_at'] = last_price[coin]['price']
+            orders[coin] = new_order
 
     return orders, last_price, volume
 
@@ -395,20 +409,11 @@ def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, volume):
 
 def update_portfolio(orders, last_price, volume):
     """add every coin bought to our portfolio for tracking/selling later"""
-    if DEBUG: print(orders)
     for coin in orders:
-        coins_bought[coin] = {
-            'symbol': orders[coin][0]['symbol'],
-            'orderid': orders[coin][0]['orderId'],
-            'timestamp': orders[coin][0]['time'],
-            'bought_at': last_price[coin]['price'],
-            'volume': volume[coin],
-            'stop_loss': -STOP_LOSS,
-            'take_profit': TAKE_PROFIT,
-        }
-
+        coins_bought[coin] = orders[coin][0]
         # save to a database
-        if LOG_FILE:
+        if LOG_TRADES:
+            write_log(f"Buy volume: {volume[coin]} {coin} - at price: {last_price[coin]['price']}")
             order_log = TradingLog(coins_bought[coin].get('symbol'),
                                    float(coins_bought[coin].get('bought_at')),
                                    0,
@@ -420,7 +425,7 @@ def update_portfolio(orders, last_price, volume):
             order_log.total = order_log.buy_price * order_log.amount
             order_log.last_update_time = utilities.time_util.now()
 
-            save_history.save_order(order_log)
+            save_history.update_order(order_log)
 
         # save the coins in a json file in the same directory
         with open(coins_bought_file_path, 'w') as file:

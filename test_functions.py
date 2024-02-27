@@ -36,6 +36,7 @@ access_key, secret_key = load_correct_creds(parsed_creds)
 client = Client(access_key, secret_key)
 client.API_URL = 'https://testnet.binance.vision/api'
 
+
 def test_tsl(coin: str, buy_price: float, price: float, USE_TRAILING_STOP_LOSS=True):
     TRADING_FEE = 0.075
     BuyPrice = float(buy_price)
@@ -109,6 +110,13 @@ def get_little_coins(limit: int):
     print(f'Total {len(prices)} coins. And filter {count} coins with limit {limit}')
 
 
+def test_time_difference():
+    TIME_DIFFERENCE = 3
+    RECHECK_INTERVAL = 3
+    time_diff = datetime.now() - timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL))
+    print(time_diff)
+
+
 class BinanceAPIWrapper(Client):
     def rolling_window_price_change(self, pair: str, window: str):
         params = {
@@ -124,4 +132,5 @@ if __name__ == '__main__':
     # sub_client = BinanceAPIWrapper()
     # result = sub_client.rolling_window_price_change('BTCUSDT', '1m')
     # print(result)
-    simulate_price_change('BTC')
+    # simulate_price_change('BTC')
+    test_time_difference()

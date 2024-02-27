@@ -5,7 +5,17 @@ from repository.trading_log import TradingLog
 from base_logger import logger
 
 
-def save_order(log: TradingLog):
+def update_order(log: TradingLog):
+    order_log = find_pair(log.pair)
+    if order_log is not None:
+        page_properties = convert_order_to_page(log)
+        result = update_page(order_log.page_id, page_properties)
+        return f"update more volume of coin {log.pair}. Result {result}"
+    else:
+        return create_new_order(log)
+
+
+def create_new_order(log: TradingLog):
     page_properties = convert_order_to_page(log)
     page_create_result = create_page(page_properties)
     if page_create_result['object'] == 'page':
@@ -59,7 +69,7 @@ def find_pair(pair: str):
         order.page_id = page_object['id']
         return order
     else:
-        logger.warning('Could not find order for pair "{}"'.format(pair))
+        logger.debug('Order Pair "{} not found"'.format(pair))
         return None
 
 
