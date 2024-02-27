@@ -441,7 +441,7 @@ def write_log(logline):
         f.write(timestamp + ' ' + logline + '\n')
 
 
-def signal_handler(sig, frame):
+def signal_handler():
     global session_profit
     print('Receive signal to quit, sell all coins now')
     last_price = get_price(False)
