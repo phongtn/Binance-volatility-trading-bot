@@ -94,7 +94,11 @@ def get_balance():
 
 
 def get_price(pair: str):
-    client.get_avg_price()
+    params = {
+        'symbol': 'BTCUSDT',
+        'windowSize': '3m'
+    }
+    return client._get('ticker', data=params, version=client.PRIVATE_API_VERSION)
 
 
 def get_little_coins(limit: int):
@@ -114,6 +118,18 @@ def get_little_coins(limit: int):
     print(f'Total {len(prices)} coins. And filter {count} coins with limit {limit}')
 
 
+class BinanceAPIWrapper(Client):
+    def rolling_window_price_change(self, pair: str, window: str):
+        params = {
+            'symbol': pair,
+            'windowSize': window
+        }
+        return self._get('ticker', data=params, version=client.PRIVATE_API_VERSION)
+
+
 if __name__ == '__main__':
     # simulate_price_change('BTC')
-    get_little_coins(10)
+    # get_little_coins(10)
+    sub_client = BinanceAPIWrapper()
+    result = sub_client.rolling_window_price_change('BTCUSDT', '1m')
+    print(result)
