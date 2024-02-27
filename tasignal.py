@@ -90,8 +90,8 @@ def ta_signal_check(pair: str, threshold: int, sign_check='BUY'):
     try:
         first_analysis = first_handler.get_analysis()
         second_analysis = second_handler.get_analysis()
-        print(first_analysis.summary)
-        print(second_analysis.summary)
+        # print(first_analysis.summary)
+        # print(second_analysis.summary)
         first_ta_result = first_analysis.summary[sign_check]
         second_ta_result = second_analysis.summary[sign_check]
         return first_ta_result >= threshold and second_ta_result >= threshold

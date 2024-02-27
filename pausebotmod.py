@@ -29,12 +29,10 @@ def analyze():
     if ma_sell >= THRESHOLD:
         paused = True
         print(
-            f'pause_bot_mod: Current threshold {THRESHOLD} The market is not looking good, bot paused from buying {analysis.summary}'
-            f'Waiting {TIME_TO_WAIT} minutes for next market checkup')
+            f'pause_bot_mod: Current threshold {THRESHOLD} The market is not looking good, bot paused from buying {analysis.summary}')
     else:
         print(
-            f'pause_bot_mod: Current threshold {THRESHOLD} The market is looking good, bot is running {analysis.summary} '
-            f'Waiting {TIME_TO_WAIT} minutes for next market checkup ')
+            f'pause_bot_mod: Current threshold {THRESHOLD} The market is looking good, bot is running {analysis.summary} ')
         paused = False
 
     return paused
@@ -46,7 +44,7 @@ def analyze():
 def do_work():
     while True:
         if not threading.main_thread().is_alive(): exit()
-        print(f'pause_bot_mod: Fetching market state')
+        # print(f'pause_bot_mod: Fetching market state')
         paused = analyze()
         if paused:
             with open('signals/paused.exc', 'a+') as f:
