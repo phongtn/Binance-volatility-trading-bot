@@ -61,7 +61,7 @@ sys.stdout = St_ampe_dOut(sys.stdout)
 def get_price(add_to_historical=True):
     """Return the current price for all coins on binance"""
 
-    global historical_prices, hsp_head
+    global HISTORICAL_PRICES, hsp_head
     initial_price = {}
     prices = client.get_all_tickers()
 
@@ -82,7 +82,7 @@ def get_price(add_to_historical=True):
         if hsp_head == RECHECK_INTERVAL:
             hsp_head = 0
 
-        historical_prices[hsp_head] = initial_price
+        HISTORICAL_PRICES[hsp_head] = initial_price
 
     return initial_price
 
@@ -91,7 +91,7 @@ def wait_for_price():
     """calls the initial price and ensures the correct amount of time has passed
     before reading the current price again"""
 
-    global historical_prices, hsp_head, volatility_cooloff
+    global HISTORICAL_PRICES, hsp_head, volatility_cooloff
 
     volatile_coins = {}
     externals = {}
@@ -102,12 +102,13 @@ def wait_for_price():
 
     pause_bot()
 
-    # print(historical_prices[hsp_head])
-    if (historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'] >
-            datetime.now() - timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL))):
+    # print(historical prices: {HISTORICAL_PRICES}')
+    time_milestone = HISTORICAL_PRICES[hsp_head]['BNB' + PAIR_WITH]['time']
+    time_past = datetime.now() - timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL))
+    if time_milestone > time_past:
         # sleep for exactly the amount of time required
         time.sleep((timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) - (
-                datetime.now() - historical_prices[hsp_head]['BNB' + PAIR_WITH]['time'])).total_seconds())
+                datetime.now() - time_milestone)).total_seconds())
 
     print(f'Working...Session profit:{session_profit:.2f}% Est:${(QUANTITY * session_profit) / 100:.2f}')
 
@@ -115,15 +116,15 @@ def wait_for_price():
     get_price()
 
     # calculate the difference in prices
-    for coin in historical_prices[hsp_head]:
+    for coin in HISTORICAL_PRICES[hsp_head]:
 
         # minimum and maximum prices over time period
-        min_price = min(historical_prices, key=lambda x: float("inf") if x is None else float(x[coin]['price']))
-        max_price = max(historical_prices, key=lambda x: -1 if x is None else float(x[coin]['price']))
+        min_price = min(HISTORICAL_PRICES, key=lambda x: float("inf") if x is None else float(x[coin]['price']))
+        max_price = max(HISTORICAL_PRICES, key=lambda x: -1 if x is None else float(x[coin]['price']))
 
-        threshold_check = (-1.0 if min_price[coin]['time'] > max_price[coin]['time'] else 1.0) * (
-                float(max_price[coin]['price']) - float(min_price[coin]['price'])) / float(
-            min_price[coin]['price']) * 100
+        threshold_check = ((-1.0 if min_price[coin]['time'] > max_price[coin]['time'] else 1.0) *
+                           (float(max_price[coin]['price']) - float(min_price[coin]['price']))
+                           / float(min_price[coin]['price']) * 100)
 
         # each coin with higher gains than our CHANGE_IN_PRICE
         # is added to the volatile_coins dict if less than MAX_COINS is not reached.
@@ -133,15 +134,16 @@ def wait_for_price():
             if coin not in volatility_cooloff:
                 volatility_cooloff[coin] = datetime.now() - timedelta(minutes=TIME_DIFFERENCE)
 
-            # only include coin as volatile if it hasn't been picked up in the last TIME_DIFFERENCE minutes already
+            # only include the coin as volatile if it hasn't been picked up in the last TIME_DIFFERENCE minutes already
             if datetime.now() >= volatility_cooloff[coin] + timedelta(minutes=TIME_DIFFERENCE):
-                volatility_cooloff[coin] = datetime.now()
+                # disable to include coin continue pump
+                # volatility_cooloff[coin] = datetime.now()
 
+                # add coin into list coins bought
                 if len(coins_bought) + len(volatile_coins) < MAX_COINS or MAX_COINS == 0:
                     volatile_coins[coin] = round(threshold_check, 3)
                     print(f'{coin} has gained {volatile_coins[coin]}% '
                           f'within the last {TIME_DIFFERENCE} minutes, calculating volume in {PAIR_WITH}')
-
                 else:
                     print(f'{txcolors.WARNING}{coin} has gained {round(threshold_check, 3)}% '
                           f'within the last {TIME_DIFFERENCE} minutes, '
@@ -149,7 +151,6 @@ def wait_for_price():
 
         elif threshold_check < CHANGE_IN_PRICE:
             coins_down += 1
-
         else:
             coins_unchanged += 1
 
@@ -167,7 +168,7 @@ def wait_for_price():
             exnumber += 1
             print(f'External signal received on {excoin}, calculating volume in {PAIR_WITH}')
 
-    return volatile_coins, len(volatile_coins), historical_prices[hsp_head]
+    return volatile_coins, len(volatile_coins), HISTORICAL_PRICES[hsp_head]
 
 
 def external_signals():
@@ -275,7 +276,6 @@ def place_buy_orders():
         # only buy if there are no active trades on the coin
         if coin not in coins_bought:
             print(f"{txcolors.BUY}Preparing to buy {volume[coin]} {coin}{txcolors.DEFAULT}")
-
             ta_result = ta_signal_check(coin, TA_BUY_THRESHOLD)
             if ta_result:
                 if TEST_MODE:
@@ -290,9 +290,9 @@ def place_buy_orders():
                 if LOG_TRADES:
                     write_log(f"Buy : {volume[coin]} {coin} - {last_price[coin]['price']}")
             else:
-                print(f'TA signal not good {ta_result}, Cancel order {coin}')
+                print(f'TA signal NOT good, Discard the order {coin}')
         else:
-            print(f'Signal detected, but there is already an active trade on {coin}')
+            print(f'Signal detected, but there is already an active trade on {coin}. {coins_bought[coin]}')
 
     return orders, last_price, volume
 
@@ -365,7 +365,7 @@ def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, volume):
           f"Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}")
 
     try:
-        if LOG_FILE:
+        if LOG_TRADES:
             save_history.update_price(coin, coin_latest_price)
         if not TEST_MODE:
             client.create_order(symbol=coin, side='SELL', type='MARKET', quantity=coins_bought[coin]['volume'])
@@ -441,9 +441,9 @@ def write_log(logline):
         f.write(timestamp + ' ' + logline + '\n')
 
 
-def signal_handler():
+def signal_handler(sig, frame):
     global session_profit
-    print('Receive signal to quit, sell all coins now')
+    print(f'Receive signal {sig} to quit, sell all coins now')
     last_price = get_price(False)
 
     for coin in list(coins_bought):
@@ -521,8 +521,6 @@ if __name__ == '__main__':
         client = BinanceAPIWrapper(access_key, secret_key)
         if TEST_MODE:
             client.API_URL = 'https://testnet.binance.vision/api'
-    # wrapper_client = BinanceAPIWrapper()
-    print(client.rolling_window_price_change('BTCUSDT', '1m'))
 
     # If the users have a bad / incorrect API key.
     # This will stop the script from starting and display a helpful error.
@@ -540,7 +538,7 @@ if __name__ == '__main__':
     coins_bought_file_path = 'coins_bought.json'
 
     # rolling window of prices; cyclical queue
-    historical_prices = [None] * (TIME_DIFFERENCE * RECHECK_INTERVAL)
+    HISTORICAL_PRICES = [None] * (TIME_DIFFERENCE * RECHECK_INTERVAL)
     hsp_head = -1
 
     # prevent including a coin in volatile_coins if it already appeared there less than TIME_DIFFERENCE minutes ago
