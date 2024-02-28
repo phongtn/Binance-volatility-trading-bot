@@ -91,7 +91,7 @@ def wait_for_price():
     """calls the initial price and ensures the correct amount of time has passed
     before reading the current price again"""
 
-    global HISTORICAL_PRICES, hsp_head, volatility_cooloff
+    global HISTORICAL_PRICES, hsp_head, volatility_cool_off
 
     volatile_coins = {}
     externals = {}
@@ -134,11 +134,11 @@ def wait_for_price():
         if threshold_check > CHANGE_IN_PRICE:
             coins_up += 1
 
-            if coin not in volatility_cooloff:
-                volatility_cooloff[coin] = datetime.now() - timedelta(minutes=TIME_DIFFERENCE)
+            if coin not in volatility_cool_off:
+                volatility_cool_off[coin] = datetime.now() - timedelta(minutes=TIME_DIFFERENCE)
 
             # only include the coin as volatile if it hasn't been picked up in the last TIME_DIFFERENCE minutes already
-            if datetime.now() >= volatility_cooloff[coin] + timedelta(minutes=TIME_DIFFERENCE):
+            if datetime.now() >= volatility_cool_off[coin] + timedelta(minutes=TIME_DIFFERENCE):
                 # disable to include coin continue pump
                 # volatility_cooloff[coin] = datetime.now()
 
@@ -412,7 +412,7 @@ def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, vol):
         # coins_sold[coin] = coins_bought[coin]
 
         # prevent a system from buying this coin for the next TIME_DIFFERENCE minutes
-        volatility_cooloff[coin] = datetime.now()
+        volatility_cool_off[coin] = datetime.now()
 
         # Log trade
         if LOG_TRADES:
@@ -484,27 +484,12 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-if __name__ == '__main__':
-
-    # Load arguments then parse settings
-    args = parse_args()
-    mymodule = {}
-
-    # set to false at Start
-    global bot_paused
-    bot_paused = False
-
-    DEFAULT_CONFIG_FILE = 'config.yml'
-    DEFAULT_CREDS_FILE = 'creds.yml'
-
-    config_file = args.config if args.config else DEFAULT_CONFIG_FILE
-    creds_file = args.creds if args.creds else DEFAULT_CREDS_FILE
+def init_config_params(config_file):
+    global TEST_MODE, LOG_TRADES, LOG_FILE, TELE_BOT, DEBUG_SETTING, AMERICAN_USER, PAIR_WITH, \
+        QUANTITY, MAX_COINS, FIATS, TIME_DIFFERENCE, RECHECK_INTERVAL, CHANGE_IN_PRICE, STOP_LOSS, \
+        TAKE_PROFIT, CUSTOM_LIST, TICKERS_LIST, USE_TRAILING_STOP_LOSS, TRAILING_STOP_LOSS, \
+        TRAILING_TAKE_PROFIT, TRADING_FEE, SIGNALLING_MODULES, TA_BUY_THRESHOLD
     parsed_config = load_config(config_file)
-    parsed_creds = load_config(creds_file)
-
-    # Default no debugging
-    # DEBUG = False
-
     # Load system vars
     TEST_MODE = parsed_config['script_options']['TEST_MODE']
     LOG_TRADES = parsed_config['script_options'].get('LOG_TRADES')
@@ -512,7 +497,6 @@ if __name__ == '__main__':
     TELE_BOT = parsed_config['script_options'].get('TELE_BOT')
     DEBUG_SETTING = parsed_config['script_options'].get('DEBUG')
     AMERICAN_USER = parsed_config['script_options'].get('AMERICAN_USER')
-
     # Load trading vars
     PAIR_WITH = parsed_config['trading_options']['PAIR_WITH']
     QUANTITY = parsed_config['trading_options']['QUANTITY']
@@ -533,73 +517,12 @@ if __name__ == '__main__':
     TA_BUY_THRESHOLD = parsed_config['trading_options']['TA_BUY_THRESHOLD']
     TA_SELL_THRESHOLD = parsed_config['trading_options']['TA_SELL_THRESHOLD']
 
-    DEBUG = DEBUG_SETTING or args.debug
-    # Load creds for correct environment
-    access_key, secret_key = load_correct_creds(parsed_creds)
+    print(f'loaded config below\n{json.dumps(parsed_config, indent=4)}')
+    if TELE_BOT:
+        tele_bot.send(f'Start bot success with config {json.dumps(parsed_config, indent=2)}')
 
-    if DEBUG:
-        print(f'loaded config below\n{json.dumps(parsed_config, indent=4)}')
-        print(f'Your credentials have been loaded from {creds_file}')
 
-    # Authenticate with the client, Ensure an API key is good before continuing
-    if AMERICAN_USER:
-        client = BinanceAPIWrapper(access_key, secret_key, tld='us')
-    else:
-        client = BinanceAPIWrapper(access_key, secret_key)
-        if TEST_MODE:
-            client.API_URL = 'https://testnet.binance.vision/api'
-
-    # If the users have a bad / incorrect API key.
-    # This will stop the script from starting and display a helpful error.
-    api_ready, msg = test_api_key(client, BinanceAPIException)
-    if api_ready is not True:
-        exit(f'{TxColors.SELL_LOSS}{msg}{TxColors.DEFAULT}')
-
-    # Use CUSTOM_LIST symbols if CUSTOM_LIST is set to True
-    if CUSTOM_LIST: tickers = [line.strip() for line in open(TICKERS_LIST)]
-
-    # try to load all the coins bought by the bot if the file exists and is not empty
-    coins_bought = {}
-
-    # path to the saved coins_bought file
-    coins_bought_file_path = 'coins_bought.json'
-
-    # rolling window of prices; cyclical queue
-    HISTORICAL_PRICES = [None] * (TIME_DIFFERENCE * RECHECK_INTERVAL)
-    hsp_head = -1
-
-    # prevent including a coin in volatile_coins if it already appeared there less than TIME_DIFFERENCE minutes ago
-    volatility_cooloff = {}
-
-    # use separate files for testing and live trading
-    if TEST_MODE:
-        coins_bought_file_path = 'test_' + coins_bought_file_path
-
-    # if saved coins_bought json file exists, and it's not empty, then load it
-    if os.path.isfile(coins_bought_file_path) and os.stat(coins_bought_file_path).st_size != 0:
-        with open(coins_bought_file_path) as file:
-            coins_bought = json.load(file)
-
-    if not TEST_MODE:
-        if not args.notimeout:  # if no-timeout skips this (fast for dev tests)
-            print('WARNING: You are using the Mainnet and live funds. Waiting 30 seconds as a security measure')
-            time.sleep(30)
-
-    signals = glob.glob("signals/*.exs")
-    for filename in signals:
-        for line in open(filename):
-            try:
-                os.remove(filename)
-            except:
-                if DEBUG: print(
-                    f'{TxColors.WARNING}Could not remove external signalling file {filename}{TxColors.DEFAULT}')
-
-    if os.path.isfile("signals/paused.exc"):
-        try:
-            os.remove("signals/paused.exc")
-        except:
-            if DEBUG: print(f'{TxColors.WARNING}Could not remove external signalling file {filename}{TxColors.DEFAULT}')
-
+def load_modules():
     # load signalling modules
     try:
         if SIGNALLING_MODULES is not None and len(SIGNALLING_MODULES) > 0:
@@ -615,14 +538,103 @@ if __name__ == '__main__':
     except Exception as e:
         print(e)
 
+
+def custom_signals():
+    signals = glob.glob("signals/*.exs")
+    for filename in signals:
+        for line in open(filename):
+            try:
+                os.remove(filename)
+            except:
+                if DEBUG: print(
+                    f'{TxColors.WARNING}Could not remove external signalling file {filename}{TxColors.DEFAULT}')
+    if os.path.isfile("signals/paused.exc"):
+        try:
+            os.remove("signals/paused.exc")
+        except:
+            if DEBUG: print(f'{TxColors.WARNING}Could not remove external signalling file {filename}{TxColors.DEFAULT}')
+
+
+def load_exist_coin_bought():
+    """ if saved coins_bought json file exists, and it's not empty, then load it """
+    existed_coins_bought = {}
+    if os.path.isfile(coins_bought_file_path) and os.stat(coins_bought_file_path).st_size != 0:
+        with open(coins_bought_file_path) as f:
+            existed_coins_bought = json.load(f)
+    return existed_coins_bought
+
+
+def init_binance_client(credentials_file):
+    # Load creds for correct environment
+    parsed_creds = load_config(credentials_file)
+    access_key, secret_key = load_correct_creds(parsed_creds)
+
+    print(f'Your credentials have been loaded from {creds_file}')
+
+    # Authenticate with the client, Ensure an API key is good before continuing
+    if AMERICAN_USER:
+        client = BinanceAPIWrapper(access_key, secret_key, tld='us')
+    else:
+        client = BinanceAPIWrapper(access_key, secret_key)
+        if TEST_MODE:
+            client.API_URL = 'https://testnet.binance.vision/api'
+
+    # If the users have a bad / incorrect API key.
+    # This will stop the script from starting and display a helpful error.
+    api_ready, msg = test_api_key(client, BinanceAPIException)
+    if api_ready is not True:
+        exit(f'{TxColors.SELL_LOSS}{msg}{TxColors.DEFAULT}')
+    return client
+
+
+if __name__ == '__main__':
+
+    # Load arguments then parse settings
+    args = parse_args()
+    mymodule = {}
+
+    # set to false at Start
+    global bot_paused
+    bot_paused = False
+
+    config_file = args.config if args.config else 'config.yml'
+    creds_file = args.creds if args.creds else 'creds.yml'
+
+    init_config_params(config_file)
+    client = init_binance_client(creds_file)
+
+    DEBUG = DEBUG_SETTING or args.debug
+    # Use CUSTOM_LIST symbols if CUSTOM_LIST is set to True
+    if CUSTOM_LIST: tickers = [line.strip() for line in open(TICKERS_LIST)]
+
+    # path to the saved coins_bought file
+    coins_bought_file_path = 'test_coins_bought.json' if TEST_MODE else 'coins_bought.json'
+
+    # try to load all the coins bought by the bot if the file exists and is not empty
+    coins_bought = load_exist_coin_bought()
+
+    # rolling window of prices; cyclical queue
+    HISTORICAL_PRICES = [None] * (TIME_DIFFERENCE * RECHECK_INTERVAL)
+    hsp_head = -1
+
+    # prevent including a coin in volatile_coins if it already appeared there less than TIME_DIFFERENCE minutes ago
+    volatility_cool_off = {}
+
+    if not TEST_MODE:
+        if not args.notimeout:  # if no-timeout skips this (fast for dev tests)
+            print('WARNING: You are using the Mainnet and live funds. Waiting 30 seconds as a security measure')
+            time.sleep(30)
+
+    custom_signals()
+    load_modules()
+
     # seed initial prices
     get_price()
     READ_TIMEOUT_COUNT = 0
     CONNECTION_ERROR_COUNT = 0
+
     signal.signal(signal.SIGINT, signal_handler)
     print('Press Ctrl-C to stop the script')
-    if TELE_BOT:
-        tele_bot.send(f'Start bot success with config {json.dumps(parsed_config, indent=2)}')
     while True:
         try:
             orders, last_price, volume = place_buy_orders()
