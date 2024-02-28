@@ -1,9 +1,9 @@
 import sys
-from datetime import datetime
+from time_util import now_str
 
 
-# for colourful logging to the console
-class tx_colors:
+# for colorful logging to the console
+class TxColors:
     BUY = '\033[92m'
     WARNING = '\033[93m'
     SELL_LOSS = '\033[91m'
@@ -25,7 +25,8 @@ class StampedStdout:
             self.old_out.write(x)
             self.nl = True
         elif self.nl:
-            self.old_out.write(f'{tx_colors.DIM}[{str(datetime.now().replace(microsecond=0))}]{tx_colors.DEFAULT} {x}')
+            self.old_out.write(
+                f'{TxColors.DIM}[{now_str()}]{TxColors.DEFAULT} {x}')
             self.nl = False
         else:
             self.old_out.write(x)
