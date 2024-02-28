@@ -1,5 +1,6 @@
 import sys
-from time_util import now_str
+import pytz
+import datetime
 
 
 # for colorful logging to the console
@@ -10,6 +11,10 @@ class TxColors:
     SELL_PROFIT = '\033[32m'
     DIM = '\033[2m\033[35m'
     DEFAULT = '\033[39m'
+
+
+def now():
+    return str(datetime.datetime.now(pytz.timezone('Asia/Saigon')).replace(microsecond=0))
 
 
 class StampedStdout:
@@ -26,7 +31,7 @@ class StampedStdout:
             self.nl = True
         elif self.nl:
             self.old_out.write(
-                f'{TxColors.DIM}[{now_str()}]{TxColors.DEFAULT} {x}')
+                f'{TxColors.DIM}[{now()}]{TxColors.DEFAULT} {x}')
             self.nl = False
         else:
             self.old_out.write(x)
