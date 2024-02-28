@@ -23,10 +23,10 @@ import time
 import signal
 import save_history
 import utilities.time_util
+import tele_bot
 
 from datetime import datetime, timedelta
 from utilities.time_util import convert_timestamp
-from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from requests.exceptions import ReadTimeout, ConnectionError
 from binance_api_wrapper import BinanceAPIWrapper
@@ -42,7 +42,7 @@ from helpers.handle_creds import (
 )
 
 from repository.trading_log import TradingLog
-from utilities.make_color import St_ampe_dOut, txcolors
+from utilities.make_color import StampedStdout, TxColors
 from tasignal import ta_signal_check
 
 # Needed for colorful console output
@@ -55,7 +55,7 @@ init()
 global session_profit
 session_profit = 0
 
-sys.stdout = St_ampe_dOut(sys.stdout)
+sys.stdout = StampedStdout(sys.stdout)
 
 
 def get_price(add_to_historical=True):
@@ -110,7 +110,10 @@ def wait_for_price():
         time.sleep((timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) - (
                 datetime.now() - time_milestone)).total_seconds())
 
-    print(f'Working...Session profit:{session_profit:.2f}% Est:${(QUANTITY * session_profit) / 100:.2f}')
+    tmp_message = f'Working...Session profit:{session_profit:.2f}% Est:${(QUANTITY * session_profit) / 100:.2f}'
+    print(tmp_message)
+    if TELE_BOT:
+        tele_bot.send(tmp_message)
 
     # retrieve latest prices
     get_price()
@@ -145,9 +148,9 @@ def wait_for_price():
                     print(f'{coin} has gained {volatile_coins[coin]}% '
                           f'within the last {TIME_DIFFERENCE} minutes, calculating volume in {PAIR_WITH}')
                 else:
-                    print(f'{txcolors.WARNING}{coin} has gained {round(threshold_check, 3)}% '
+                    print(f'{TxColors.WARNING}{coin} has gained {round(threshold_check, 3)}% '
                           f'within the last {TIME_DIFFERENCE} minutes, '
-                          f'but you are holding max number of coins{txcolors.DEFAULT}')
+                          f'but you are holding max number of coins{TxColors.DEFAULT}')
 
         elif threshold_check < CHANGE_IN_PRICE:
             coins_down += 1
@@ -184,7 +187,7 @@ def external_signals():
         try:
             os.remove(filename)
         except:
-            if DEBUG: print(f'{txcolors.WARNING}Could not remove external signalling file{txcolors.DEFAULT}')
+            if DEBUG: print(f'{TxColors.WARNING}Could not remove external signalling file{TxColors.DEFAULT}')
 
     return external_list
 
@@ -199,8 +202,8 @@ def pause_bot():
     while os.path.isfile("signals/paused.exc"):
 
         if bot_paused == False:
-            print(f'{txcolors.WARNING}Pausing buying due to change in market conditions, '
-                  f'stop loss and take profit will continue to work...{txcolors.DEFAULT}')
+            print(f'{TxColors.WARNING}Pausing buying due to change in market conditions, '
+                  f'stop loss and take profit will continue to work...{TxColors.DEFAULT}')
             bot_paused = True
 
         # Sell function needs to work even while paused
@@ -221,7 +224,7 @@ def pause_bot():
         # resume the bot and ser pause_bot to False
         if bot_paused == True:
             print(
-                f'{txcolors.WARNING}Resuming buying due to change in market conditions, total sleep time: {time_elapsed}{txcolors.DEFAULT}')
+                f'{TxColors.WARNING}Resuming buying due to change in market conditions, total sleep time: {time_elapsed}{TxColors.DEFAULT}')
             bot_paused = False
 
     return
@@ -237,7 +240,7 @@ def convert_volume():
     for coin in volatile_coins:
 
         # Find the correct step size for each coin
-        # max accuracy for BTC for example is 6 decimal points
+        # max accuracy for BTC, for example, is 6 decimal points
         # while XRP is only 1
         try:
             info = client.get_symbol_info(coin)
@@ -246,7 +249,6 @@ def convert_volume():
 
             if lot_size[coin] < 0:
                 lot_size[coin] = 0
-
         except:
             pass
 
@@ -287,21 +289,20 @@ def place_buy_orders():
             except Exception as exception:
                 print(f'Place order failed. The reason is: {exception}')
             new_order = wait_for_order_completion(coin)
-            print(f'Order placed result: {orders[coin]}')
+            print(f'REAL Order placed result: {orders[coin]}')
 
-        print(f"{txcolors.BUY}Preparing to buy {volume[coin]} {coin}{txcolors.DEFAULT}")
+        print(f"{TxColors.BUY}Preparing to buy {volume[coin]} {coin}{TxColors.DEFAULT}")
         if coin in coins_bought:
-            new_volume = coins_bought[coin]['volume'] + volume[coin]
-            new_price = (float(coins_bought[coin]['bought_at']) + float(last_price[coin]['price'])) / 2
-            orders[coin] = [{'symbol': coin, 'orderId': 0,
-                             'timestamp': datetime.now().timestamp(),
-                             'bought_at': new_price,
-                             'volume': new_volume,
-                             'stop_loss': coins_bought[coin]['stop_loss'],
-                             'take_profit': coins_bought[coin]['take_profit']}]
-            print(f'There is already an active trade on {coin}. Buy more and re calculate AVG price')
-            print(f'Old log {coins_bought[coin]}')
-            print(f'New log {orders[coin]}')
+            # new_volume = coins_bought[coin]['volume'] + volume[coin]
+            # new_price = (float(coins_bought[coin]['bought_at']) + float(last_price[coin]['price'])) / 2
+            # orders[coin] = [{'symbol': coin, 'orderId': 0,
+            #                  'timestamp': datetime.now().timestamp(),
+            #                  'bought_at': new_price,
+            #                  'volume': new_volume,
+            #                  'stop_loss': coins_bought[coin]['stop_loss'],
+            #                  'take_profit': coins_bought[coin]['take_profit']}]
+            # print(f'There is already an active trade on {coin}. Buy more and re calculate AVG price')
+            print(f'There is already an active trade on {coin}. No buy more')
         else:
             new_order[0]['volume'] = volume[coin]
             new_order[0]['timestamp'] = datetime.now().timestamp()
@@ -350,9 +351,23 @@ def sell_coins():
             # increasing TP by TRAILING_TAKE_PROFIT (essentially next time to readjust SL)
             coins_bought[coin]['take_profit'] = PriceChange + TRAILING_TAKE_PROFIT
             coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
+
+            # Place more order
+            # TODO need to convert volume, now for testing we'll double volume every pump
+            # new_volume = coins_bought[coin]['volume'] * 2
+            # new_price = (float(coins_bought[coin]['bought_at']) + coin_last_price) / 2
+            # orders[coin] = [{'symbol': coin, 'orderId': 0,
+            #                  'timestamp': datetime.now().timestamp(),
+            #                  'bought_at': new_price,
+            #                  'volume': new_volume,
+            #                  'stop_loss': coins_bought[coin]['stop_loss'],
+            #                  'take_profit': coins_bought[coin]['take_profit']}]
+            # update_portfolio(orders)
+
             if DEBUG:
                 print(
-                    f"{coin} TP reached {BuyPrice}/{coin_last_price}, change {PriceChange}. adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
+                    f"{coin} TP reached {BuyPrice}/{coin_last_price}, change {PriceChange}. "
+                    f"adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
                     f"and SL {coins_bought[coin]['stop_loss']:.2f} accordingly to lock-in profit")
             continue
 
@@ -368,27 +383,29 @@ def sell_coins():
         if hsp_head == 1:
             if len(coins_bought) > 0:
                 print(
-                    f'TP or SL not yet reached, not selling {coin} for now {BuyPrice} - {coin_last_price} : {txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}{PriceChange - (TRADING_FEE * 2):.2f}% Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}')
+                    f'TP or SL not yet reached, not selling {coin} for now {BuyPrice} - {coin_last_price} : '
+                    f'{TxColors.SELL_PROFIT if PriceChange >= 0. else TxColors.SELL_LOSS}{PriceChange - (TRADING_FEE * 2):.2f}%'
+                    f' Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{TxColors.DEFAULT}')
 
     if hsp_head == 1 and len(coins_bought) == 0: print(f'Not holding any coins')
 
     return coins_sold
 
 
-def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, volume):
-    print(f"{txcolors.SELL_PROFIT if PriceChange >= 0. else txcolors.SELL_LOSS}TP or SL reached, "
-          f"selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {coin_latest_price} : {PriceChange - (TRADING_FEE * 2):.2f}% "
-          f"Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{txcolors.DEFAULT}")
+def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, vol):
+    print(f"{TxColors.SELL_PROFIT if PriceChange >= 0. else TxColors.SELL_LOSS}TP or SL reached, "
+          f"selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {coin_latest_price} : "
+          f"{PriceChange - (TRADING_FEE * 2):.2f}% "
+          f"Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{TxColors.DEFAULT}")
 
     try:
         if LOG_TRADES:
             save_history.update_price(coin, coin_latest_price)
         if not TEST_MODE:
-            client.create_order(symbol=coin, side='SELL', type='MARKET', quantity=coins_bought[coin]['volume'])
-
+            client.create_order(symbol=coin, side='SELL', type='MARKET', quantity=vol)
     # error handling here in case position cannot be placed
-    except Exception as e:
-        print(e)
+    except Exception as exception:
+        print(f'place order error: {exception}')
 
     # run the else block if coin has been sold and create a dict for each coin sold
     else:
@@ -399,27 +416,28 @@ def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, volume):
 
         # Log trade
         if LOG_TRADES:
-            profit = ((coin_latest_price - BuyPrice) * volume) * (
+            profit = ((coin_latest_price - BuyPrice) * vol) * (
                     1 - (TRADING_FEE * 2))  # adjust for trading fee here
             write_log(
-                f"Sell: {volume} {coin} - {BuyPrice} - {coin_latest_price} "
+                f"Sell: {vol} {coin} - {BuyPrice} - {coin_latest_price} "
                 f"Profit: {profit:.2f} {PriceChange - (TRADING_FEE * 2):.2f}%")
     return PriceChange - (TRADING_FEE * 2)
 
 
-def update_portfolio(orders, last_price, volume):
+def update_portfolio(list_orders):
     """add every coin bought to our portfolio for tracking/selling later"""
-    for coin in orders:
-        coins_bought[coin] = orders[coin][0]
+    for coin in list_orders:
+        coins_bought[coin] = list_orders[coin][0]
+        vol = coins_bought[coin].get('volume')
+        price = coins_bought[coin].get('bought_at')
+
         # save to a database
         if LOG_TRADES:
-            write_log(f"Buy volume: {volume[coin]} {coin} - at price: {last_price[coin]['price']}")
+            write_log(f"Buy volume: {vol} {coin} - at price: {price}")
             order_log = TradingLog(coins_bought[coin].get('symbol'),
                                    float(coins_bought[coin].get('bought_at')),
-                                   0,
-                                   coins_bought[coin].get('volume'),
-                                   0,
-                                   'Buy')
+                                   0, vol, 0, 'Buy')
+
             order_log.order_time = convert_timestamp(coins_bought[coin].get('timestamp'))
             order_log.latest_price = float(coins_bought[coin].get('bought_at'))
             order_log.total = order_log.buy_price * order_log.amount
@@ -428,9 +446,10 @@ def update_portfolio(orders, last_price, volume):
             save_history.update_order(order_log)
 
         # save the coins in a json file in the same directory
-        with open(coins_bought_file_path, 'w') as file:
-            json.dump(coins_bought, file, indent=4)
-        print(f'Order with id {orders[coin][0]["orderId"]} placed and saved to file')
+        with open(coins_bought_file_path, 'w') as coin_bough_file:
+            json.dump(coins_bought, coin_bough_file, indent=4)
+
+        print(f'Order with id {list_orders[coin][0]["orderId"]} placed and saved to file')
 
 
 def remove_from_portfolio(coins_sold):
@@ -461,7 +480,7 @@ def signal_handler(sig, frame):
         profit = place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, coins_bought[coin]['volume'])
         session_profit = session_profit + profit
 
-    print(f'Working...Session profit:{session_profit:.2f}% Est:${(QUANTITY * session_profit) / 100:.2f}')
+    print(f'Working...Session profit: {session_profit:.2f}% Est: ${(QUANTITY * session_profit) / 100:.2f}')
     sys.exit(0)
 
 
@@ -490,6 +509,7 @@ if __name__ == '__main__':
     TEST_MODE = parsed_config['script_options']['TEST_MODE']
     LOG_TRADES = parsed_config['script_options'].get('LOG_TRADES')
     LOG_FILE = parsed_config['script_options'].get('LOG_FILE')
+    TELE_BOT = parsed_config['script_options'].get('TELE_BOT')
     DEBUG_SETTING = parsed_config['script_options'].get('DEBUG')
     AMERICAN_USER = parsed_config['script_options'].get('AMERICAN_USER')
 
@@ -533,7 +553,7 @@ if __name__ == '__main__':
     # This will stop the script from starting and display a helpful error.
     api_ready, msg = test_api_key(client, BinanceAPIException)
     if api_ready is not True:
-        exit(f'{txcolors.SELL_LOSS}{msg}{txcolors.DEFAULT}')
+        exit(f'{TxColors.SELL_LOSS}{msg}{TxColors.DEFAULT}')
 
     # Use CUSTOM_LIST symbols if CUSTOM_LIST is set to True
     if CUSTOM_LIST: tickers = [line.strip() for line in open(TICKERS_LIST)]
@@ -572,13 +592,13 @@ if __name__ == '__main__':
                 os.remove(filename)
             except:
                 if DEBUG: print(
-                    f'{txcolors.WARNING}Could not remove external signalling file {filename}{txcolors.DEFAULT}')
+                    f'{TxColors.WARNING}Could not remove external signalling file {filename}{TxColors.DEFAULT}')
 
     if os.path.isfile("signals/paused.exc"):
         try:
             os.remove("signals/paused.exc")
         except:
-            if DEBUG: print(f'{txcolors.WARNING}Could not remove external signalling file {filename}{txcolors.DEFAULT}')
+            if DEBUG: print(f'{TxColors.WARNING}Could not remove external signalling file {filename}{TxColors.DEFAULT}')
 
     # load signalling modules
     try:
@@ -601,17 +621,19 @@ if __name__ == '__main__':
     CONNECTION_ERROR_COUNT = 0
     signal.signal(signal.SIGINT, signal_handler)
     print('Press Ctrl-C to stop the script')
+    if TELE_BOT:
+        tele_bot.send(f'Start bot success with config {json.dumps(parsed_config, indent=2)}')
     while True:
         try:
             orders, last_price, volume = place_buy_orders()
-            update_portfolio(orders, last_price, volume)
+            update_portfolio(orders)
             list_coins_sold = sell_coins()
             remove_from_portfolio(list_coins_sold)
         except ReadTimeout as rt:
             READ_TIMEOUT_COUNT += 1
-            print(f"{txcolors.WARNING}We got a timeout error from from binance. Going to re-loop. "
-                  f"Current Count: {READ_TIMEOUT_COUNT}\n{rt}{txcolors.DEFAULT}")
+            print(f"{TxColors.WARNING}We got a timeout error from from binance. Going to re-loop. "
+                  f"Current Count: {READ_TIMEOUT_COUNT}\n{rt}{TxColors.DEFAULT}")
         except ConnectionError as ce:
             CONNECTION_ERROR_COUNT += 1
-            print(f'{txcolors.WARNING}We got a timeout error from from binance. Going to re-loop.'
-                  f' Current Count: {CONNECTION_ERROR_COUNT}\n{ce}{txcolors.DEFAULT}')
+            print(f'{TxColors.WARNING}We got a timeout error from from binance. Going to re-loop.'
+                  f' Current Count: {CONNECTION_ERROR_COUNT}\n{ce}{TxColors.DEFAULT}')
