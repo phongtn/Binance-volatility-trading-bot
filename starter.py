@@ -15,39 +15,36 @@ or others connected with the program.
 # used for directory handling
 import glob
 import importlib
+import json
 import os
+import signal
 import sys
 import threading
-import json
 import time
-import signal
-import save_history
-import utilities.time_util
-import tele_bot
-
 from datetime import datetime, timedelta
-from utilities.time_util import convert_timestamp
+
 from binance.exceptions import BinanceAPIException
+# Needed for colorful console output
+# Installation with: python3 -m pip install colorama (Mac/Linux) or pip install colorama (PC)
+from colorama import init
 from requests.exceptions import ReadTimeout, ConnectionError
+
+import save_history
+import tele_bot
+import utilities.time_util
 from binance_api_wrapper import BinanceAPIWrapper
-
-# Load helper modules
-from helpers.parameters import (
-    parse_args, load_config
-)
-
 # Load creds modules
 from helpers.handle_creds import (
     load_correct_creds, test_api_key
 )
-
+# Load helper modules
+from helpers.parameters import (
+    parse_args, load_config
+)
 from repository.trading_log import TradingLog
-from utilities.make_color import StampedStdout, TxColors
 from tasignal import ta_signal_check
-
-# Needed for colorful console output
-# Installation with: python3 -m pip install colorama (Mac/Linux) or pip install colorama (PC)
-from colorama import init
+from utilities.make_color import StampedStdout, TxColors
+from utilities.time_util import convert_timestamp
 
 init()
 
@@ -109,7 +106,7 @@ def wait_for_price():
         # sleep for exactly the amount of time required
         wait_next_turn = (timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) -
                           (datetime.now() - time_milestone)).total_seconds()
-        print(f'time history milestone: {time_milestone}, time_past: {time_past}. Waiting {wait_next_turn}')
+        # print(f'time history milestone: {time_milestone}, time_past: {time_past}. Waiting {wait_next_turn}')
         time.sleep(wait_next_turn)
 
     tmp_message = f'Working...Session profit: {session_profit:.2f}% Est: ${(QUANTITY * session_profit) / 100:.2f}'

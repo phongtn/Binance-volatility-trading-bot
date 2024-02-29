@@ -1,14 +1,13 @@
 # Available indicators here: https://python-tradingview-ta.readthedocs.io/en/latest/usage.html#retrieving-the-analysis
 
-from tradingview_ta import TA_Handler, Interval, Exchange
 # use for environment variables
 import os
-# use if needed to pass args to external modules
-import sys
-# used for directory handling
-import glob
-import time
 import threading
+# use if needed to pass args to external modules
+# used for directory handling
+import time
+
+from tradingview_ta import TA_Handler, Interval
 
 OSC_INDICATORS = ['MACD', 'Stoch.RSI', 'Mom'] # Indicators to use in Oscillator analysis
 OSC_THRESHOLD = 2 # Must be less or equal to number of items in OSC_INDICATORS 

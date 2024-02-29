@@ -1,6 +1,7 @@
-import sys
-import pytz
 import datetime
+import sys
+
+import pytz
 
 
 # for colorful logging to the console

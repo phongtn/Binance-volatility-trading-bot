@@ -1,12 +1,11 @@
-from tradingview_ta import TA_Handler, Interval, Exchange
 # use for environment variables
 import os
-# use if needed to pass args to external modules
-import sys
-# used for directory handling
-import glob
-
 import time
+
+from tradingview_ta import TA_Handler, Interval
+
+# use if needed to pass args to external modules
+# used for directory handling
 
 MY_EXCHANGE = 'BINANCE'
 MY_SCREENER = 'CRYPTO'

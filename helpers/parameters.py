@@ -1,5 +1,6 @@
-import yaml
 import argparse
+
+import yaml
 
 
 def load_config(file):

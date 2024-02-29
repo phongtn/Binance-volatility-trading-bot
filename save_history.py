@@ -1,8 +1,7 @@
 import utilities.time_util
+from base_logger import logger
 from repository.notion_api import create_page, database_filter, update_page
 from repository.trading_log import TradingLog
-
-from base_logger import logger
 
 
 def update_order(log: TradingLog):
