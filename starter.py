@@ -107,10 +107,12 @@ def wait_for_price():
     time_past = datetime.now() - timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL))
     if time_milestone > time_past:
         # sleep for exactly the amount of time required
-        time.sleep((timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) - (
-                datetime.now() - time_milestone)).total_seconds())
+        wait_next_turn = (timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) -
+                          (datetime.now() - time_milestone)).total_seconds()
+        print(f'time history milestone: {time_milestone}, time_past: {time_past}. Waiting {wait_next_turn}')
+        time.sleep(wait_next_turn)
 
-    tmp_message = f'Working...Session profit:{session_profit:.2f}% Est:${(QUANTITY * session_profit) / 100:.2f}'
+    tmp_message = f'Working...Session profit: {session_profit:.2f}% Est: ${(QUANTITY * session_profit) / 100:.2f}'
     print(tmp_message)
     if TELE_BOT:
         tele_bot.send(tmp_message)
@@ -140,7 +142,7 @@ def wait_for_price():
             # only include the coin as volatile if it hasn't been picked up in the last TIME_DIFFERENCE minutes already
             if datetime.now() >= volatility_cool_off[coin] + timedelta(minutes=TIME_DIFFERENCE):
                 # disable to include coin continue pump
-                # volatility_cooloff[coin] = datetime.now()
+                volatility_cool_off[coin] = datetime.now()
 
                 # add coin into list coins bought
                 if len(coins_bought) + len(volatile_coins) < MAX_COINS or MAX_COINS == 0:
@@ -201,7 +203,7 @@ def pause_bot():
 
     while os.path.isfile("signals/paused.exc"):
 
-        if bot_paused == False:
+        if not bot_paused:
             print(f'{TxColors.WARNING}Pausing buying due to change in market conditions, '
                   f'stop loss and take profit will continue to work...{TxColors.DEFAULT}')
             bot_paused = True
@@ -222,7 +224,7 @@ def pause_bot():
         time_elapsed = timedelta(seconds=int(stop_time - start_time))
 
         # resume the bot and ser pause_bot to False
-        if bot_paused == True:
+        if bot_paused:
             print(
                 f'{TxColors.WARNING}Resuming buying due to change in market conditions, total sleep time: {time_elapsed}{TxColors.DEFAULT}')
             bot_paused = False
@@ -329,7 +331,6 @@ def wait_for_order_completion(coin):
 
 def sell_coins():
     """sell coins that have reached the STOP LOSS or TAKE a PROFIT threshold"""
-
     global hsp_head, session_profit
 
     last_price = get_price(False)  # don't populate a rolling window
@@ -339,17 +340,17 @@ def sell_coins():
     for coin in list(coins_bought):
         coin_last_price = float(last_price[coin]['price'])
         BuyPrice = float(coins_bought[coin]['bought_at'])
-        PriceChange = float((coin_last_price - BuyPrice) / BuyPrice * 100)
+        percentile_price_change = float((coin_last_price - BuyPrice) / BuyPrice * 100)
 
         # define stop loss and take profit
         price_take_profit = BuyPrice + (BuyPrice * coins_bought[coin]['take_profit']) / 100
         price_stop_loss = BuyPrice + (BuyPrice * coins_bought[coin]['stop_loss']) / 100
 
         # check that the price is above the take profit and readjust SL and TP accordingly if trialing stop loss used
-        if coin_last_price > price_take_profit and USE_TRAILING_STOP_LOSS:
+        if coin_last_price >= price_take_profit and USE_TRAILING_STOP_LOSS:
 
             # increasing TP by TRAILING_TAKE_PROFIT (essentially next time to readjust SL)
-            coins_bought[coin]['take_profit'] = PriceChange + TRAILING_TAKE_PROFIT
+            coins_bought[coin]['take_profit'] = percentile_price_change + TRAILING_TAKE_PROFIT
             coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
 
             # Place more order
@@ -366,16 +367,19 @@ def sell_coins():
 
             if DEBUG:
                 print(
-                    f"{coin} TP reached {BuyPrice}/{coin_last_price}, change {PriceChange}. "
+                    f"{coin} TP reached {BuyPrice}/{coin_last_price}, change {percentile_price_change}. "
                     f"adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
                     f"and SL {coins_bought[coin]['stop_loss']:.2f} accordingly to lock-in profit")
             continue
 
-        # check that the price is below the stop loss or above take profit (if trailing stop loss not used) and sell
-        # if this is the case
-        if coin_last_price < price_stop_loss or coin_last_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
+        # check that the price is below the stop loss or above take profit
+        # (if trailing stop loss not used) and sell if this is the case
+        # Todo we should count some cycle price growth up and take profit after 3-5 cycle pump
+        if coin_last_price <= price_stop_loss or coin_last_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
             coins_sold[coin] = coins_bought[coin]
-            profit = place_order_sell(PriceChange, BuyPrice, coin, coin_last_price, coins_sold[coin]['volume'])
+            profit = place_order_sell(percentile_price_change, BuyPrice,
+                                      coin, coin_last_price,
+                                      coins_sold[coin]['volume'])
             session_profit = session_profit + profit
             continue
 
@@ -384,8 +388,8 @@ def sell_coins():
             if len(coins_bought) > 0:
                 print(
                     f'TP or SL not yet reached, not selling {coin} for now {BuyPrice} - {coin_last_price} : '
-                    f'{TxColors.SELL_PROFIT if PriceChange >= 0. else TxColors.SELL_LOSS}{PriceChange - (TRADING_FEE * 2):.2f}%'
-                    f' Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{TxColors.DEFAULT}')
+                    f'{TxColors.SELL_PROFIT if percentile_price_change >= 0. else TxColors.SELL_LOSS}{percentile_price_change - (TRADING_FEE * 2):.2f}%'
+                    f' Est:${(QUANTITY * (percentile_price_change - (TRADING_FEE * 2))) / 100:.2f}{TxColors.DEFAULT}')
 
     if hsp_head == 1 and len(coins_bought) == 0: print(f'Not holding any coins')
 
@@ -480,6 +484,7 @@ def signal_handler(sig, frame):
         profit = place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, coins_bought[coin]['volume'])
         session_profit = session_profit + profit
 
+    # not yet update the log
     print(f'Working...Session profit: {session_profit:.2f}% Est: ${(QUANTITY * session_profit) / 100:.2f}')
     sys.exit(0)
 
