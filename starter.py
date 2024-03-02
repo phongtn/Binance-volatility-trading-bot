@@ -84,11 +84,14 @@ def get_price(add_to_historical=True):
     return initial_price
 
 
+# last_send_tele_mess = datetime.now()
+
+
 def wait_for_price():
     """calls the initial price and ensures the correct amount of time has passed
     before reading the current price again"""
 
-    global HISTORICAL_PRICES, hsp_head, volatility_cool_off
+    global HISTORICAL_PRICES, hsp_head, volatility_cool_off, last_send_tele_mess
 
     volatile_coins = {}
     externals = {}
@@ -109,10 +112,13 @@ def wait_for_price():
         # print(f'time history milestone: {time_milestone}, time_past: {time_past}. Waiting {wait_next_turn}')
         time.sleep(wait_next_turn)
 
-    tmp_message = f'Working...Session profit: {session_profit:.2f}% Est: ${(QUANTITY * session_profit) / 100:.2f}'
-    print(tmp_message)
-    if TELE_BOT:
-        tele_bot.send(tmp_message)
+    # tmp_message = f'Working...Session profit: {session_profit:.2f}% Est: ${(QUANTITY * session_profit) / 100:.2f}'
+    # tmp_message = (f'Working...Session profit: {session_profit / (QUANTITY * MAX_COINS / 100):.2f}%'
+    #                f' Est Profit: ${session_profit:.2f}')
+    # print(tmp_message)
+    # if TELE_BOT and (datetime.now() - last_send_tele_mess).total_seconds() > 60:
+    #     tele_bot.send(tmp_message)
+    #     last_send_tele_mess = datetime.now()
 
     # retrieve latest prices
     get_price()
@@ -211,8 +217,8 @@ def pause_bot():
         get_price(True)
 
         # pausing here
-        if hsp_head == 1: print(
-            f'Paused...Session profit:{session_profit:.2f}% Est:${(QUANTITY * session_profit) / 100:.2f}')
+        if hsp_head == 1: print(f'Working...Session profit: {(session_profit / (QUANTITY * MAX_COINS) * 100):.2f}%'
+                   f' Est Profit: ${session_profit:.2f}')
         time.sleep((TIME_DIFFERENCE * 60) / RECHECK_INTERVAL)
 
     else:
@@ -308,6 +314,7 @@ def place_buy_orders():
             new_order[0]['stop_loss'] = -STOP_LOSS
             new_order[0]['take_profit'] = TAKE_PROFIT
             new_order[0]['bought_at'] = last_price[coin]['price']
+
             orders[coin] = new_order
 
     return orders, last_price, volume
@@ -317,12 +324,12 @@ def wait_for_order_completion(coin):
     """in PROD mode, we'll get the latest order from history to ensure the order is placed."""
     """Wait for the order to be completed and return the order details."""
     latest_order = client.get_all_orders(symbol=coin, limit=1)
-
-    while not latest_order[coin]:
-        print('Binance is being slow in returning the order, calling the API again...')
+    retry = 1
+    while not latest_order and retry <= 5:
+        print(f'Binance is slow in returning the order and calling the API again... times {retry}.')
         latest_order = client.get_all_orders(symbol=coin, limit=1)
         time.sleep(1)
-
+        retry += 1
     return latest_order
 
 
@@ -383,46 +390,61 @@ def sell_coins():
         # no action; print once every TIME_DIFFERENCE
         if hsp_head == 1:
             if len(coins_bought) > 0:
+                vol = coins_bought[coin]['volume']
+                est_fee, est_profit = calc_trading_profit(BuyPrice, coin_last_price, vol)
+                tx_color = TxColors.SELL_PROFIT if percentile_price_change >= 0. else TxColors.SELL_LOSS
                 print(
-                    f'TP or SL not yet reached, not selling {coin} for now {BuyPrice} - {coin_last_price} : '
-                    f'{TxColors.SELL_PROFIT if percentile_price_change >= 0. else TxColors.SELL_LOSS}{percentile_price_change - (TRADING_FEE * 2):.2f}%'
-                    f' Est:${(QUANTITY * (percentile_price_change - (TRADING_FEE * 2))) / 100:.2f}{TxColors.DEFAULT}')
+                    f'TP or SL not yet reached, not selling {coin} for now {BuyPrice}/{coin_last_price}.'
+                    f' Change: {tx_color}{percentile_price_change:.2f}%'
+                    f" Est profit: ${est_profit:.2f}")
 
-    if hsp_head == 1 and len(coins_bought) == 0: print(f'Not holding any coins')
+    if hsp_head == 1:
+        if len(coins_bought) == 0: print(f'Not holding any coins')
+        tmp_message = (f'Working...Session profit: {(session_profit / (QUANTITY * MAX_COINS) * 100):.2f}%'
+                       f' Est Profit: ${session_profit:.2f}')
+        print(tmp_message)
+        if TELE_BOT:
+            tele_bot.send(tmp_message)
 
     return coins_sold
 
 
 def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, vol):
-    print(f"{TxColors.SELL_PROFIT if PriceChange >= 0. else TxColors.SELL_LOSS}TP or SL reached, "
-          f"selling {coins_bought[coin]['volume']} {coin} - {BuyPrice} - {coin_latest_price} : "
-          f"{PriceChange - (TRADING_FEE * 2):.2f}% "
-          f"Est:${(QUANTITY * (PriceChange - (TRADING_FEE * 2))) / 100:.2f}{TxColors.DEFAULT}")
+    est_fee, est_profit = calc_trading_profit(BuyPrice, coin_latest_price, vol)
+
+    tx_color = TxColors.SELL_PROFIT if PriceChange >= 0. else TxColors.SELL_LOSS
+    print(f"{tx_color}TP or SL reached, "
+          f"selling {vol} {coin} at price: {BuyPrice}/{coin_latest_price}."
+          f" Change: {PriceChange:.2f}%. Fee: {est_fee:.2f}."
+          f" Est profit: ${est_profit:.2f}")
 
     try:
         if LOG_TRADES:
             save_history.update_price(coin, coin_latest_price)
         if not TEST_MODE:
             client.create_order(symbol=coin, side='SELL', type='MARKET', quantity=vol)
-    # error handling here in case position cannot be placed
     except Exception as exception:
         print(f'place order error: {exception}')
 
     # run the else block if coin has been sold and create a dict for each coin sold
     else:
-        # coins_sold[coin] = coins_bought[coin]
-
         # prevent a system from buying this coin for the next TIME_DIFFERENCE minutes
         volatility_cool_off[coin] = datetime.now()
 
         # Log trade
         if LOG_TRADES:
-            profit = ((coin_latest_price - BuyPrice) * vol) * (
-                    1 - (TRADING_FEE * 2))  # adjust for trading fee here
             write_log(
                 f"Sell: {vol} {coin} - {BuyPrice} - {coin_latest_price} "
-                f"Profit: {profit:.2f} {PriceChange - (TRADING_FEE * 2):.2f}%")
-    return PriceChange - (TRADING_FEE * 2)
+                f"Profit: {est_profit:.2f} {PriceChange:.2f} % ")
+    return est_profit
+
+
+def calc_trading_profit(buy_price, sell_price, vol):
+    """double fee for buy and sell"""
+    # est_fee = TRADING_FEE / 50 * sell_price * vol
+    est_fee = 0
+    est_profit = (sell_price - buy_price) * vol - est_fee
+    return est_fee, est_profit
 
 
 def update_portfolio(list_orders):
@@ -482,7 +504,9 @@ def signal_handler(sig, frame):
         session_profit = session_profit + profit
 
     # not yet update the log
-    print(f'Working...Session profit: {session_profit:.2f}% Est: ${(QUANTITY * session_profit) / 100:.2f}')
+    tmp_message = (f'Working...Session profit: {(session_profit / (QUANTITY * MAX_COINS) * 100):.2f}%'
+                   f' Est Profit: ${session_profit:.2f}')
+    print(tmp_message)
     sys.exit(0)
 
 
@@ -625,7 +649,7 @@ if __name__ == '__main__':
     if not TEST_MODE:
         if not args.notimeout:  # if no-timeout skips this (fast for dev tests)
             print('WARNING: You are using the Mainnet and live funds. Waiting 30 seconds as a security measure')
-            time.sleep(30)
+            # time.sleep(30)
 
     custom_signals()
     load_modules()
