@@ -20,6 +20,7 @@ def create_new_order(log: TradingLog):
     if page_create_result['object'] == 'page':
         return f"status: Ok. Page ID: {page_create_result['id']}"
     else:
+        logger.error(f"create page error {page_create_result['message']}")
         return f"status: {page_create_result['code']}. Message: {page_create_result['message']}"
 
 
