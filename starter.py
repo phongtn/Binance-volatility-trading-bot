@@ -140,18 +140,6 @@ def wait_for_price():
                 # disable to include coin continue pump
                 volatility_cool_off[coin] = datetime.now()
                 volatile_coins[coin] = round(threshold_check, 3)
-                print(f'{coin} has gained {volatile_coins[coin]}% '
-                      f'within the last {TIME_DIFFERENCE} minutes, calculating volume in {PAIR_WITH}')
-
-                # add coin into list coins bought
-                # if len(coins_bought) + len(volatile_coins) < MAX_COINS or MAX_COINS == 0:
-                #     volatile_coins[coin] = round(threshold_check, 3)
-                #     print(f'{coin} has gained {volatile_coins[coin]}% '
-                #           f'within the last {TIME_DIFFERENCE} minutes, calculating volume in {PAIR_WITH}')
-                # else:
-                #     print(f'{TxColors.WARNING}{coin} has gained {round(threshold_check, 3)}% '
-                #           f'within the last {TIME_DIFFERENCE} minutes, '
-                #           f'but you are holding max number of coins{TxColors.DEFAULT}')
 
         elif threshold_check < CHANGE_IN_PRICE:
             coins_down += 1
@@ -171,7 +159,7 @@ def wait_for_price():
             exnumber += 1
             print(f'External signal received on {excoin}, calculating volume in {PAIR_WITH}')
 
-    return volatile_coins, len(volatile_coins), HISTORICAL_PRICES[hsp_head]
+    return volatile_coins, HISTORICAL_PRICES[hsp_head]
 
 
 def external_signals():
@@ -231,9 +219,10 @@ def pause_bot():
 
 
 def convert_volume():
-    """Converts the volume given in QUANTITY from USDT to the coin's volume"""
+    """Sorted the list of volatile coins, Only taking the coin with the highest price change.
+    Converts the volume given in QUANTITY from USDT to the coin's volume"""
 
-    volatile_coins, number_of_coins, last_price = wait_for_price()
+    volatile_coins, last_price = wait_for_price()
     volume = {}
     if len(volatile_coins) > 0 and len(coins_bought) < MAX_COINS:
         sorted_list = sorted(volatile_coins.items(), key=lambda x: x[1], reverse=True)
@@ -270,8 +259,12 @@ def place_buy_orders():
                      'cummulativeQuoteQty': volume[coin] * float(last_price[coin]['price']),
                      'time': datetime.now().timestamp()}]
             else:
-                client.create_order(symbol=coin, side=SIDE_BUY, type=ORDER_TYPE_MARKET, quantity=volume[coin])
-                new_order = wait_for_order_completion(coin)
+                order_result = client.create_order(symbol=coin, side=SIDE_BUY, type=ORDER_TYPE_MARKET, quantity=volume[coin])
+                if not order_result:
+                    print('waiting for get log order')
+                    new_order = wait_for_order_completion(coin)
+                else:
+                    new_order = [order_result]
                 print(f'REAL Order placed result: {new_order}')
         except Exception as exception:
             print(f'Place order failed. The reason is: {exception}')
