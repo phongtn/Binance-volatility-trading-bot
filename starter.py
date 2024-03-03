@@ -16,6 +16,7 @@ or others connected with the program.
 import glob
 import importlib
 import json
+import math
 import os
 import signal
 import sys
@@ -24,6 +25,7 @@ import time
 from datetime import datetime, timedelta
 
 from binance.exceptions import BinanceAPIException
+from binance.enums import *
 # Needed for colorful console output
 # Installation with: python3 -m pip install colorama (Mac/Linux) or pip install colorama (PC)
 from colorama import init
@@ -109,16 +111,7 @@ def wait_for_price():
         # sleep for exactly the amount of time required
         wait_next_turn = (timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) -
                           (datetime.now() - time_milestone)).total_seconds()
-        # print(f'time history milestone: {time_milestone}, time_past: {time_past}. Waiting {wait_next_turn}')
         time.sleep(wait_next_turn)
-
-    # tmp_message = f'Working...Session profit: {session_profit:.2f}% Est: ${(QUANTITY * session_profit) / 100:.2f}'
-    # tmp_message = (f'Working...Session profit: {session_profit / (QUANTITY * MAX_COINS / 100):.2f}%'
-    #                f' Est Profit: ${session_profit:.2f}')
-    # print(tmp_message)
-    # if TELE_BOT and (datetime.now() - last_send_tele_mess).total_seconds() > 60:
-    #     tele_bot.send(tmp_message)
-    #     last_send_tele_mess = datetime.now()
 
     # retrieve latest prices
     get_price()
@@ -146,16 +139,19 @@ def wait_for_price():
             if datetime.now() >= volatility_cool_off[coin] + timedelta(minutes=TIME_DIFFERENCE):
                 # disable to include coin continue pump
                 volatility_cool_off[coin] = datetime.now()
+                volatile_coins[coin] = round(threshold_check, 3)
+                print(f'{coin} has gained {volatile_coins[coin]}% '
+                      f'within the last {TIME_DIFFERENCE} minutes, calculating volume in {PAIR_WITH}')
 
                 # add coin into list coins bought
-                if len(coins_bought) + len(volatile_coins) < MAX_COINS or MAX_COINS == 0:
-                    volatile_coins[coin] = round(threshold_check, 3)
-                    print(f'{coin} has gained {volatile_coins[coin]}% '
-                          f'within the last {TIME_DIFFERENCE} minutes, calculating volume in {PAIR_WITH}')
-                else:
-                    print(f'{TxColors.WARNING}{coin} has gained {round(threshold_check, 3)}% '
-                          f'within the last {TIME_DIFFERENCE} minutes, '
-                          f'but you are holding max number of coins{TxColors.DEFAULT}')
+                # if len(coins_bought) + len(volatile_coins) < MAX_COINS or MAX_COINS == 0:
+                #     volatile_coins[coin] = round(threshold_check, 3)
+                #     print(f'{coin} has gained {volatile_coins[coin]}% '
+                #           f'within the last {TIME_DIFFERENCE} minutes, calculating volume in {PAIR_WITH}')
+                # else:
+                #     print(f'{TxColors.WARNING}{coin} has gained {round(threshold_check, 3)}% '
+                #           f'within the last {TIME_DIFFERENCE} minutes, '
+                #           f'but you are holding max number of coins{TxColors.DEFAULT}')
 
         elif threshold_check < CHANGE_IN_PRICE:
             coins_down += 1
@@ -164,8 +160,7 @@ def wait_for_price():
 
     # Disabled until fix
     # print(f'Up: {coins_up} Down: {coins_down} Unchanged: {coins_unchanged}')
-
-    # Here goes new code for external signalling
+    # Here goes new code for external signaling
     externals = external_signals()
     exnumber = 0
 
@@ -218,7 +213,7 @@ def pause_bot():
 
         # pausing here
         if hsp_head == 1: print(f'Working...Session profit: {(session_profit / (QUANTITY * MAX_COINS) * 100):.2f}%'
-                   f' Est Profit: ${session_profit:.2f}')
+                                f' Est Profit: ${session_profit:.2f}')
         time.sleep((TIME_DIFFERENCE * 60) / RECHECK_INTERVAL)
 
     else:
@@ -239,38 +234,17 @@ def convert_volume():
     """Converts the volume given in QUANTITY from USDT to the coin's volume"""
 
     volatile_coins, number_of_coins, last_price = wait_for_price()
-    lot_size = {}
     volume = {}
+    if len(volatile_coins) > 0 and len(coins_bought) < MAX_COINS:
+        sorted_list = sorted(volatile_coins.items(), key=lambda x: x[1], reverse=True)
+        vol_coins = sorted_list[:MAX_COINS - len(coins_bought)]
 
-    for coin in volatile_coins:
-
-        # Find the correct step size for each coin
-        # max accuracy for BTC, for example, is 6 decimal points
-        # while XRP is only 1
-        try:
-            info = client.get_symbol_info(coin)
-            step_size = info['filters'][1]['stepSize']
-            lot_size[coin] = step_size.index('1') - 1
-
-            if lot_size[coin] < 0:
-                lot_size[coin] = 0
-        except:
-            pass
-
-        # calculate the volume in coin from QUANTITY in USDT (default)
-        volume[coin] = float(QUANTITY / float(last_price[coin]['price']))
-
-        # define the volume with the correct step size
-        if coin not in lot_size:
-            volume[coin] = float('{:.1f}'.format(volume[coin]))
-
-        else:
-            # if lot size has 0 decimal points, make the volume an integer
-            if lot_size[coin] == 0:
-                volume[coin] = int(volume[coin])
-            else:
-                volume[coin] = float('{:.{}f}'.format(volume[coin], lot_size[coin]))
-
+        for coin, change in vol_coins:
+            # Find the correct step size for each coin
+            # max accuracy for BTC, for example, is 6 decimal points
+            # while XRP is only 1
+            vol = float(QUANTITY / float(last_price[coin]['price']))
+            volume[coin] = client.round_volume(coin, vol)
     return volume, last_price
 
 
@@ -284,40 +258,46 @@ def place_buy_orders():
         if not ta_result:
             print(f'TA signal NOT good, Discard the BUY order {coin}')
             continue
+        if not valid_buy_order(coin):
+            continue
 
         # Place the BUY order
-        if TEST_MODE:
-            new_order = [{'symbol': coin, 'orderId': 0, 'time': datetime.now().timestamp()}]
-        else:
-            try:
-                client.create_order(symbol=coin, side='BUY', type='MARKET', quantity=volume[coin])
-            except Exception as exception:
-                print(f'Place order failed. The reason is: {exception}')
-            new_order = wait_for_order_completion(coin)
-            print(f'REAL Order placed result: {orders[coin]}')
-
         print(f"{TxColors.BUY}Preparing to buy {volume[coin]} {coin}{TxColors.DEFAULT}")
-        if coin in coins_bought:
-            # new_volume = coins_bought[coin]['volume'] + volume[coin]
-            # new_price = (float(coins_bought[coin]['bought_at']) + float(last_price[coin]['price'])) / 2
-            # orders[coin] = [{'symbol': coin, 'orderId': 0,
-            #                  'timestamp': datetime.now().timestamp(),
-            #                  'bought_at': new_price,
-            #                  'volume': new_volume,
-            #                  'stop_loss': coins_bought[coin]['stop_loss'],
-            #                  'take_profit': coins_bought[coin]['take_profit']}]
-            # print(f'There is already an active trade on {coin}. Buy more and re calculate AVG price')
-            print(f'There is already an active trade on {coin}. No buy more')
-        else:
-            new_order[0]['volume'] = volume[coin]
-            new_order[0]['timestamp'] = datetime.now().timestamp()
-            new_order[0]['stop_loss'] = -STOP_LOSS
-            new_order[0]['take_profit'] = TAKE_PROFIT
-            new_order[0]['bought_at'] = last_price[coin]['price']
+        try:
+            if TEST_MODE:
+                new_order = [
+                    {'symbol': coin, 'orderId': 0, 'executedQty': volume[coin],
+                     'cummulativeQuoteQty': volume[coin] * float(last_price[coin]['price']),
+                     'time': datetime.now().timestamp()}]
+            else:
+                client.create_order(symbol=coin, side=SIDE_BUY, type=ORDER_TYPE_MARKET, quantity=volume[coin])
+                new_order = wait_for_order_completion(coin)
+                print(f'REAL Order placed result: {new_order}')
+        except Exception as exception:
+            print(f'Place order failed. The reason is: {exception}')
 
-            orders[coin] = new_order
+        # build the response
+        exec_vol = float(new_order[0].get('executedQty'))
+        total = float(new_order[0].get('cummulativeQuoteQty'))
+        new_order[0]['volume'] = exec_vol
+        new_order[0]['timestamp'] = datetime.now().timestamp()
+        new_order[0]['stop_loss'] = -STOP_LOSS
+        new_order[0]['take_profit'] = TAKE_PROFIT
+        new_order[0]['bought_at'] = client.round_price(coin, total / exec_vol)
 
+        orders[coin] = new_order
     return orders, last_price, volume
+
+
+def valid_buy_order(coin):
+    is_ok = True
+    if coin in coins_bought:
+        print(f'There is already an active trade on {coin}. No buy more')
+        is_ok = False
+    if not TEST_MODE and client.check_balance(PAIR_WITH) < QUANTITY:
+        print(f'The balance {PAIR_WITH} is insufficient. Discard request BUY')
+        is_ok = False
+    return is_ok
 
 
 def wait_for_order_completion(coin):
@@ -356,19 +336,6 @@ def sell_coins():
             # increasing TP by TRAILING_TAKE_PROFIT (essentially next time to readjust SL)
             coins_bought[coin]['take_profit'] = percentile_price_change + TRAILING_TAKE_PROFIT
             coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
-
-            # Place more order
-            # TODO need to convert volume, now for testing we'll double volume every pump
-            # new_volume = coins_bought[coin]['volume'] * 2
-            # new_price = (float(coins_bought[coin]['bought_at']) + coin_last_price) / 2
-            # orders[coin] = [{'symbol': coin, 'orderId': 0,
-            #                  'timestamp': datetime.now().timestamp(),
-            #                  'bought_at': new_price,
-            #                  'volume': new_volume,
-            #                  'stop_loss': coins_bought[coin]['stop_loss'],
-            #                  'take_profit': coins_bought[coin]['take_profit']}]
-            # update_portfolio(orders)
-
             if DEBUG:
                 print(
                     f"{coin} TP reached {BuyPrice}/{coin_last_price}, change {percentile_price_change}. "
@@ -382,15 +349,14 @@ def sell_coins():
         if coin_last_price <= price_stop_loss or coin_last_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
             coins_sold[coin] = coins_bought[coin]
             profit = place_order_sell(percentile_price_change, BuyPrice,
-                                      coin, coin_last_price,
-                                      coins_sold[coin]['volume'])
+                                      coin, coin_last_price, )
             session_profit = session_profit + profit
             continue
 
         # no action; print once every TIME_DIFFERENCE
         if hsp_head == 1:
             if len(coins_bought) > 0:
-                vol = coins_bought[coin]['volume']
+                vol = float(coins_bought[coin]['volume'])
                 est_fee, est_profit = calc_trading_profit(BuyPrice, coin_last_price, vol)
                 tx_color = TxColors.SELL_PROFIT if percentile_price_change >= 0. else TxColors.SELL_LOSS
                 print(
@@ -409,20 +375,25 @@ def sell_coins():
     return coins_sold
 
 
-def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, vol):
+def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price):
+    current_balance = client.check_balance(coin.replace(PAIR_WITH, ''))
+    vol = client.round_volume(coin, current_balance)
+
     est_fee, est_profit = calc_trading_profit(BuyPrice, coin_latest_price, vol)
 
-    tx_color = TxColors.SELL_PROFIT if PriceChange >= 0. else TxColors.SELL_LOSS
-    print(f"{tx_color}TP or SL reached, "
-          f"selling {vol} {coin} at price: {BuyPrice}/{coin_latest_price}."
-          f" Change: {PriceChange:.2f}%. Fee: {est_fee:.2f}."
-          f" Est profit: ${est_profit:.2f}")
-
     try:
-        if LOG_TRADES:
-            save_history.update_price(coin, coin_latest_price)
         if not TEST_MODE:
-            client.create_order(symbol=coin, side='SELL', type='MARKET', quantity=vol)
+            sell_result = client.create_order(symbol=coin, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=vol)
+            print(sell_result)
+            real_fee = 0
+            real_price = 0
+            for fill_order in sell_result['fills']:
+                real_fee += float(fill_order['commission'])
+                real_price += float(fill_order['price'])
+            est_fee = real_fee
+            coin_latest_price = real_price / len(sell_result['fills'])
+            est_profit = (coin_latest_price - BuyPrice) * float(vol) - est_fee
+
     except Exception as exception:
         print(f'place order error: {exception}')
 
@@ -431,6 +402,14 @@ def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, vol):
         # prevent a system from buying this coin for the next TIME_DIFFERENCE minutes
         volatility_cool_off[coin] = datetime.now()
 
+        tx_color = TxColors.SELL_PROFIT if PriceChange >= 0. else TxColors.SELL_LOSS
+        print(f"{tx_color}TP or SL reached, "
+              f"selling {vol} {coin} at price: {BuyPrice}/{coin_latest_price}."
+              f" Change: {PriceChange:.2f}%. Fee: {est_fee:.2f}."
+              f" Est profit: ${est_profit:.2f}")
+
+        if LOG_TRADES:
+            save_history.update_price(coin, coin_latest_price)
         # Log trade
         if LOG_TRADES:
             write_log(
@@ -443,29 +422,30 @@ def calc_trading_profit(buy_price, sell_price, vol):
     """double fee for buy and sell"""
     # est_fee = TRADING_FEE / 50 * sell_price * vol
     est_fee = 0
-    est_profit = (sell_price - buy_price) * vol - est_fee
+    est_profit = (sell_price - buy_price) * float(vol) - est_fee
     return est_fee, est_profit
 
 
 def update_portfolio(list_orders):
     """add every coin bought to our portfolio for tracking/selling later"""
     for coin in list_orders:
-        coins_bought[coin] = list_orders[coin][0]
+        order = list_orders[coin][0]
+
+        coins_bought[coin] = order
         vol = coins_bought[coin].get('volume')
         price = coins_bought[coin].get('bought_at')
 
         # save to a database
         if LOG_TRADES:
             write_log(f"Buy volume: {vol} {coin} - at price: {price}")
-            order_log = TradingLog(coins_bought[coin].get('symbol'),
-                                   float(coins_bought[coin].get('bought_at')),
-                                   0, vol, 0, 'Buy')
+            order_log = TradingLog(order.get('symbol'),
+                                   float(order.get('bought_at')),
+                                   0, float(vol),
+                                   float(order.get('cummulativeQuoteQty')), 'Buy')
 
-            order_log.order_time = convert_timestamp(coins_bought[coin].get('timestamp'))
-            order_log.latest_price = float(coins_bought[coin].get('bought_at'))
-            order_log.total = order_log.buy_price * order_log.amount
+            order_log.order_time = convert_timestamp(order.get('timestamp'))
+            order_log.latest_price = float(price)
             order_log.last_update_time = utilities.time_util.now()
-
             save_history.update_order(order_log)
 
         # save the coins in a json file in the same directory
@@ -500,7 +480,7 @@ def signal_handler(sig, frame):
         BuyPrice = float(coins_bought[coin]['bought_at'])
         PriceChange = float((coin_latest_price - BuyPrice) / BuyPrice * 100)
 
-        profit = place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price, coins_bought[coin]['volume'])
+        profit = place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price)
         session_profit = session_profit + profit
 
     # not yet update the log
@@ -593,7 +573,7 @@ def load_exist_coin_bought():
 def init_binance_client(credentials_file):
     # Load creds for correct environment
     parsed_creds = load_config(credentials_file)
-    access_key, secret_key = load_correct_creds(parsed_creds)
+    access_key, secret_key = load_correct_creds(parsed_creds, TEST=TEST_MODE)
 
     print(f'Your credentials have been loaded from {creds_file}')
 
@@ -603,8 +583,7 @@ def init_binance_client(credentials_file):
     else:
         client = BinanceAPIWrapper(access_key, secret_key)
         if TEST_MODE:
-            client.API_URL = 'https://testnet.binance.vision/api'
-
+            client.API_URL = BinanceAPIWrapper.API_TESTNET_URL
     # If the users have a bad / incorrect API key.
     # This will stop the script from starting and display a helpful error.
     api_ready, msg = test_api_key(client, BinanceAPIException)
