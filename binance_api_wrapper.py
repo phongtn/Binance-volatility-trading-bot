@@ -17,3 +17,11 @@ class BinanceAPIWrapper(Client):
             'windowSize': window
         }
         return self._get('ticker', data=params, version=self.PRIVATE_API_VERSION)
+
+    def check_balance(self, symbol: str):
+        try:
+            balance = self.get_asset_balance(asset=symbol)
+            free = balance.get('free')
+            return float(free)
+        except Exception as exception:
+            print(f'get account balance failed. The reason is: {exception}')
