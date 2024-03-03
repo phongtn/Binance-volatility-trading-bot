@@ -1,4 +1,5 @@
 from binance.client import Client
+from binance.helpers import round_step_size
 
 
 class BinanceAPIWrapper(Client):
@@ -25,3 +26,19 @@ class BinanceAPIWrapper(Client):
             return float(free)
         except Exception as exception:
             print(f'get account balance failed. The reason is: {exception}')
+
+    def round_volume(self, symbol: str, vol):
+        try:
+            info = self.get_symbol_info(symbol)
+            step_size = info['filters'][1]['stepSize']
+            return round_step_size(vol, step_size)
+        except Exception as exception:
+            print(f'round volume failed: {exception}')
+
+    def round_price(self, symbol: str, price):
+        try:
+            info = self.get_symbol_info(symbol)
+            tick_size = info['filters'][0]['tickSize']
+            return round_step_size(price, tick_size)
+        except Exception as exception:
+            print(f'round price failed: {exception}')
