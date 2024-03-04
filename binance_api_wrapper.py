@@ -1,3 +1,5 @@
+from datetime import timedelta, datetime
+
 from binance.client import Client
 from binance.helpers import round_step_size
 
@@ -42,3 +44,17 @@ class BinanceAPIWrapper(Client):
             return round_step_size(price, tick_size)
         except Exception as exception:
             print(f'round price failed: {exception}')
+
+    def get_klines_minutes(self, symbol: str, interval: str, duration: int):
+        end = datetime.now()
+        start = (end - timedelta(minutes=float(duration))).timestamp()
+        return self.get_klines(symbol=symbol, interval=interval, startTime=int(start * 1000),
+                               endTime=int(end.timestamp() * 1000), timeZone=0)
+
+    def top_price_change_24h(self, limit: int):
+        all_ticker = self.get_ticker()
+        cleaned_list = [item for item in all_ticker if 'USDT' in item.get('symbol', '')]
+        sorted_list = sorted(cleaned_list, key=lambda x: float(x['priceChangePercent']), reverse=True)
+        return sorted_list[:limit]
+
+
