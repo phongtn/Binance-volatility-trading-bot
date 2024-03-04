@@ -259,7 +259,8 @@ def place_buy_orders():
                      'cummulativeQuoteQty': volume[coin] * float(last_price[coin]['price']),
                      'time': datetime.now().timestamp()}]
             else:
-                order_result = client.create_order(symbol=coin, side=SIDE_BUY, type=ORDER_TYPE_MARKET, quantity=volume[coin])
+                order_result = client.create_order(symbol=coin, side=SIDE_BUY, type=ORDER_TYPE_MARKET,
+                                                   quantity=volume[coin])
                 if not order_result:
                     print('waiting for get log order')
                     new_order = wait_for_order_completion(coin)
@@ -314,10 +315,11 @@ def sell_coins():
     # last_price = get_price(add_to_historical=True) # don't populate a rolling window
     coins_sold = {}
 
-    for coin in list(coins_bought):
+    for coin, order in coins_bought.items():
         coin_last_price = float(last_price[coin]['price'])
-        BuyPrice = float(coins_bought[coin]['bought_at'])
+        BuyPrice = float(order['bought_at'])
         percentile_price_change = float((coin_last_price - BuyPrice) / BuyPrice * 100)
+        percentile_price_change = round(percentile_price_change, 3)
 
         # define stop loss and take profit
         price_take_profit = BuyPrice + (BuyPrice * coins_bought[coin]['take_profit']) / 100
@@ -331,8 +333,8 @@ def sell_coins():
             coins_bought[coin]['stop_loss'] = coins_bought[coin]['take_profit'] - TRAILING_STOP_LOSS
             if DEBUG:
                 print(
-                    f"{coin} TP reached {BuyPrice}/{coin_last_price}, change {percentile_price_change}. "
-                    f"adjusting TP {coins_bought[coin]['take_profit']:.2f}  "
+                    f"{coin} TP reached {BuyPrice}/{coin_last_price}, Change {percentile_price_change}%. "
+                    f"Adjusting TP to {coins_bought[coin]['take_profit']:.2f}  "
                     f"and SL {coins_bought[coin]['stop_loss']:.2f} accordingly to lock-in profit")
             continue
 
@@ -341,15 +343,14 @@ def sell_coins():
         # Todo we should count some cycle price growth up and take profit after 3-5 cycle pump
         if coin_last_price <= price_stop_loss or coin_last_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
             coins_sold[coin] = coins_bought[coin]
-            profit = place_order_sell(percentile_price_change, BuyPrice,
-                                      coin, coin_last_price, )
+            profit = place_order_sell(percentile_price_change, BuyPrice, coin, coin_last_price)
             session_profit = session_profit + profit
             continue
 
         # no action; print once every TIME_DIFFERENCE
         if hsp_head == 1:
             if len(coins_bought) > 0:
-                vol = float(coins_bought[coin]['volume'])
+                vol = float(order['volume'])
                 est_fee, est_profit = calc_trading_profit(BuyPrice, coin_last_price, vol)
                 tx_color = TxColors.SELL_PROFIT if percentile_price_change >= 0. else TxColors.SELL_LOSS
                 print(
@@ -369,7 +370,7 @@ def sell_coins():
 
 
 def place_order_sell(PriceChange, BuyPrice, coin, coin_latest_price):
-    current_balance = client.check_balance(coin.replace(PAIR_WITH, ''))
+    current_balance = float(coins_bought[coin]['volume']) if TEST_MODE else client.check_balance(coin.replace(PAIR_WITH, ''))
     vol = client.round_volume(coin, current_balance)
 
     est_fee, est_profit = calc_trading_profit(BuyPrice, coin_latest_price, vol)
@@ -480,6 +481,8 @@ def signal_handler(sig, frame):
     tmp_message = (f'Working...Session profit: {(session_profit / (QUANTITY * MAX_COINS) * 100):.2f}%'
                    f' Est Profit: ${session_profit:.2f}')
     print(tmp_message)
+    if TEST_MODE:
+        os.remove(coins_bought_file_path)
     sys.exit(0)
 
 
