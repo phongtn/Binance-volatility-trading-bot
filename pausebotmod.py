@@ -29,10 +29,10 @@ def analyze():
     if ma_sell >= THRESHOLD:
         paused = True
         print(
-            f'pause_bot_mod: Current threshold {THRESHOLD} The market is not looking good, bot paused from buying {analysis.summary}')
+            f'pause_bot_mod: Current threshold {THRESHOLD} The market is NOT looking good, bot paused from buying {analysis.summary}')
     else:
-        print(
-            f'pause_bot_mod: Current threshold {THRESHOLD} The market is looking good, bot is running {analysis.summary} ')
+        # print(
+        #     f'pause_bot_mod: Current threshold {THRESHOLD} The market is looking GOOD, bot is running {analysis.summary} ')
         paused = False
 
     return paused
