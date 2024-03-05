@@ -13,4 +13,4 @@ def to_trans(order_result: dict):
     return BinanceTransaction(order_id=order_result.get('orderId'), symbol=order_result.get('symbol'),
                               price=price, quantity=quantity, quote_quantity=total, commission=fee,
                               transact_time=order_result.get('transactTime'), side=order_result.get('side'),
-                              status=order_result.get('status'))
+                              status=order_result.get('status'), stop_loss=0, take_profit=0)
