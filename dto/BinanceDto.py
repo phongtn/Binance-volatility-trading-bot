@@ -13,6 +13,7 @@ class BinanceTransaction():
     quote_quantity: float
     """trading fee"""
     commission: float
+    """this timestamp is in milliseconds """
     transact_time: datetime
     side: str
     status: str

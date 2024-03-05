@@ -10,7 +10,9 @@ def to_trans(order_result: dict):
         price += float(fill_order['price'])
         quantity += float(fill_order['qty'])
     price = price / len(fills)
+    # convert to seconds
+    trans_time = order_result.get('transactTime') / 1000
     return BinanceTransaction(order_id=order_result.get('orderId'), symbol=order_result.get('symbol'),
                               price=price, quantity=quantity, quote_quantity=total, commission=fee,
-                              transact_time=order_result.get('transactTime'), side=order_result.get('side'),
+                              transact_time=trans_time, side=order_result.get('side'),
                               status=order_result.get('status'), stop_loss=0, take_profit=0)
