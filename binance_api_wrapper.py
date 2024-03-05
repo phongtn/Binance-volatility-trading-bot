@@ -1,7 +1,10 @@
 from datetime import timedelta, datetime
 
 from binance.client import Client
+from binance.exceptions import BinanceAPIException
 from binance.helpers import round_step_size
+from dto.BinanceDto import BinanceTransaction
+from binance.enums import *
 
 
 class BinanceAPIWrapper(Client):
@@ -63,4 +66,25 @@ class BinanceAPIWrapper(Client):
         sorted_list = sorted(cleaned_list, key=lambda x: float(x['volume']), reverse=True)
         return sorted_list[:limit]
 
+    def get_trans_history(self, symbol, orderId):
+        try:
+            order = self.get_order(symbol=symbol, orderId=orderId)
+        except BinanceAPIException as ex:
+            print(ex.message)
+            return None
+        qtt = float(order.get('executedQty'))
+        total = float(order.get('cummulativeQuoteQty'))
+        price = self.round_price(symbol, total / qtt)
+        trans = BinanceTransaction(orderId, symbol, price,
+                                   qtt, total, 0,
+                                   order.get('time'), order.get('side'), order.get('status'))
+        return trans
 
+    def sell_multiple_coin(self, symbols):
+        """Be careful !!! This function will be selling all coins in the list symbols"""
+        for symbol in symbols:
+            current_balance = self.check_balance(symbol)
+            symbol = symbol + 'USDT'
+            vol = self.round_volume(symbol, current_balance)
+            order_result = self.create_order(symbol=symbol, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=vol)
+            print(f'order result {order_result}')
