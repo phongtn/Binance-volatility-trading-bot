@@ -262,10 +262,10 @@ def send_buy_order(coin: str, coin_vol: float, price: float):
             order_result = client.create_order(symbol=coin, side=SIDE_BUY, type=ORDER_TYPE_MARKET, quantity=coin_vol)
             if not order_result:
                 order_result = client.get_latest_order(coin)
-            print(f'{TxColors.BUY}REAL Order placed result: {order_result}')
             trans = dto.BinanceConverter.to_trans(order_result)
             trans.stop_loss = -STOP_LOSS
             trans.take_profit = TAKE_PROFIT
+            print(f'{TxColors.BUY}Bough {trans.quantity} {trans.symbol} at price: {trans.price}. Total {trans.quote_quantity}')
             return trans
     except Exception as exception:
         print(f'Place order failed. The reason is: {exception}')
@@ -313,8 +313,8 @@ def sell_coins():
             if DEBUG:
                 print(
                     f"{coin} TP reached {BuyPrice}/{coin_last_price}, Change {percentile_price_change}%. "
-                    f"Adjusting TP to {coins_bought[coin]['take_profit']:.2f}  "
-                    f"and SL {coins_bought[coin]['stop_loss']:.2f} accordingly to lock-in profit")
+                    f"Adjusting TP to {trans.take_profit:.2f}  "
+                    f"and SL {trans.stop_loss:.2f} accordingly to lock-in profit")
             continue
 
         # check that the price is below the stop loss or above take profit
@@ -322,7 +322,7 @@ def sell_coins():
         # Todo we should count some cycle price growth up and take profit after 3-5 cycle pump
         if coin_last_price <= price_stop_loss or coin_last_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
             coins_sold[coin] = coins_bought[coin]
-            profit = place_order_sell(percentile_price_change, BuyPrice, coin, coin_last_price)
+            profit = place_order_sell(trans, percentile_price_change, coin_last_price)
             session_profit = session_profit + profit
             continue
 
@@ -348,17 +348,16 @@ def sell_coins():
     return coins_sold
 
 
-def place_order_sell(price_change, price_bought, coin, coin_latest_price):
-    current_balance = float(coins_bought[coin].quantity) if TEST_MODE else client.check_balance(
-        coin.replace(PAIR_WITH, ''))
-    vol = client.round_volume(coin, current_balance)
+def place_order_sell(trans: BinanceTransaction, price_change: float, coin_latest_price: float):
+    coin = trans.symbol
+    current_balance = trans.quantity if TEST_MODE else client.check_balance(coin.replace(PAIR_WITH, ''))
+    vol = client.round_volume(trans.symbol, current_balance)
 
-    est_fee, est_profit = calc_trading_profit(price_bought, coin_latest_price, vol)
-
+    est_fee, est_profit = calc_trading_profit(trans.price, coin_latest_price, vol)
     try:
         if not TEST_MODE:
             sell_result = client.create_order(symbol=coin, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=vol)
-            print(sell_result)
+            # print(sell_result)
             real_fee = 0
             real_price = 0
             for fill_order in sell_result['fills']:
@@ -366,7 +365,7 @@ def place_order_sell(price_change, price_bought, coin, coin_latest_price):
                 real_price += float(fill_order['price'])
             est_fee = real_fee
             coin_latest_price = real_price / len(sell_result['fills'])
-            est_profit = (coin_latest_price - price_bought) * float(vol) - est_fee
+            est_profit = (coin_latest_price - trans.price) * float(vol) - est_fee
 
     except Exception as exception:
         print(f'place order error: {exception}')
@@ -378,7 +377,7 @@ def place_order_sell(price_change, price_bought, coin, coin_latest_price):
 
         tx_color = TxColors.SELL_PROFIT if price_change >= 0. else TxColors.SELL_LOSS
         print(f"{tx_color}TP or SL reached, "
-              f"selling {vol} {coin} at price: {price_bought}/{coin_latest_price}."
+              f"selling {vol} {coin} at price: {trans.price}/{coin_latest_price}."
               f" Change: {price_change:.2f}%. Fee: {est_fee:.2f}."
               f" Est profit: ${est_profit:.2f}")
 
@@ -387,7 +386,7 @@ def place_order_sell(price_change, price_bought, coin, coin_latest_price):
         # Log trade
         if LOG_TRADES:
             write_log(
-                f"Sell: {vol} {coin} - {price_bought} - {coin_latest_price} "
+                f"Sell: {vol} {coin} - {trans.price} - {coin_latest_price} "
                 f"Profit: {est_profit:.2f} {price_change:.2f} % ")
     return est_profit
 
@@ -404,39 +403,23 @@ def update_portfolio(list_orders: dict):
     """add every coin bought to our portfolio for tracking/selling later"""
     for coin in list_orders:
         trans = list_orders[coin]
-        coins_bought[coin] = trans
 
-        # save to a database
         if LOG_TRADES:
             write_log(f"Buy volume: {trans.quantity} {coin} - at price: {trans.price}")
-            order_log = TradingLog(coin, trans.price, 0, trans.quantity,
-                                   trans.quote_quantity, trans.side)
-
-            order_log.order_time = convert_timestamp(trans.transact_time('timestamp'))
+            order_log = TradingLog(coin, trans.price, 0, trans.quantity, trans.quote_quantity, trans.side)
+            order_log.order_time = convert_timestamp(trans.transact_time)
             order_log.latest_price = trans.price
             order_log.last_update_time = utilities.time_util.now()
             save_history.update_order(order_log)
 
-        # save the coins in a json file in the same directory
-        # with open(coins_bought_file_path, 'w') as coin_bough_file:
-        #     json.dump(coins_bought, coin_bough_file, indent=4)
-        # save_to_file(coin, trans)
-        # print(f'Order with id {trans.order_id} placed and saved to file')
+        coins_bought[coin] = trans
+        save_to_file()
+        print(f'Order with id {trans.order_id} placed and saved to file')
 
 
-def save_to_file(coin: str, trans: BinanceTransaction):
-    dictionary = {coin: BinanceTransactionEncoder().encode(trans)}
+def save_to_file():
     with open(coins_bought_file_path, 'w') as coin_bough_file:
-        coin_bough_file.write(dictionary + '\n')
-
-
-def remove_from_portfolio(coins_sold):
-    """Remove coins sold due to SL or TP from portfolio"""
-    for coin in coins_sold:
-        coins_bought.pop(coin)
-
-    # with open(coins_bought_file_path, 'w') as file:
-    #     json.dump(coins_bought, file, indent=4)
+        coin_bough_file.write(json.dumps(coins_bought, indent=4, default=lambda o: o.__dict__))
 
 
 def write_log(logline):
@@ -455,7 +438,7 @@ def signal_handler(sig, frame):
         price_bought = trans.price
         price_change = float((coin_latest_price - price_bought) / price_bought * 100)
 
-        profit = place_order_sell(price_change, price_bought, coin, coin_latest_price)
+        profit = place_order_sell(trans, price_change, coin_latest_price)
         session_profit = session_profit + profit
 
     # not yet update the log
@@ -567,6 +550,13 @@ def init_binance_client(credentials_file):
     if api_ready is not True:
         exit(f'{TxColors.SELL_LOSS}{msg}{TxColors.DEFAULT}')
     return client
+
+
+def remove_from_portfolio(coins_sold):
+    """Remove coins sold due to SL or TP from portfolio"""
+    for coin in coins_sold:
+        coins_bought.pop(coin)
+    save_to_file()
 
 
 if __name__ == '__main__':
