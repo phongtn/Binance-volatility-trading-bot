@@ -1,3 +1,4 @@
+import time
 from datetime import timedelta, datetime
 
 from binance.client import Client
@@ -88,3 +89,15 @@ class BinanceAPIWrapper(Client):
             vol = self.round_volume(symbol, current_balance)
             order_result = self.create_order(symbol=symbol, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=vol)
             print(f'order result {order_result}')
+
+    def get_latest_order(self, coin):
+        """Wait for the order to be completed and return the order details."""
+        print(f'waiting for get history order of {coin}')
+        latest_order = self.get_all_orders(symbol=coin, limit=1)
+        retry = 1
+        while not latest_order and retry <= 5:
+            print(f'Binance is slow in returning the order and calling the API again... times {retry}.')
+            latest_order = self.get_all_orders(symbol=coin, limit=1)
+            time.sleep(1)
+            retry += 1
+        return latest_order[0] if len(latest_order) > 0 else {}
