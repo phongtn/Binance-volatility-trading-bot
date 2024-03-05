@@ -43,7 +43,10 @@ def database_filter(payload: dict):
     res = requests.post(url, json=payload, headers=headers)
     try:
         json_response = res.json()
-        return json_response["results"]
+        if json_response.get('results') is not None:
+            return json_response['results']
+        else:
+            raise Exception(f'Notion database {DATABASE_ID} not found')
     except requests.exceptions.JSONDecodeError as ex:
         print(f'response error {ex}-{res}')
 
