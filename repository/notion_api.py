@@ -20,22 +20,32 @@ def create_page(page_properties: dict):
     create_url = f"{API_URI}/pages"
     payload = {"parent": {"database_id": DATABASE_ID}, "properties": page_properties}
     res = requests.post(create_url, headers=headers, json=payload)
-    return res.json()
+    try:
+        json_response = res.json()
+        return json_response
+    except requests.exceptions.JSONDecodeError as ex:
+        print(f'response error {ex}-{res}')
 
 
 def update_page(page_id: str, page_properties: dict):
     url = f"{API_URI}/pages/{page_id}"
     payload = {"properties": page_properties}
     res = requests.patch(url, json=payload, headers=headers)
-    json_response = res.json()
-    return json_response
+    try:
+        json_response = res.json()
+        return json_response
+    except requests.exceptions.JSONDecodeError as ex:
+        print(f'response error {ex}-{res}')
 
 
 def database_filter(payload: dict):
     url = f"{API_URI}/databases/{DATABASE_ID}/query"
     res = requests.post(url, json=payload, headers=headers)
-    json_data = res.json()
-    return json_data["results"]
+    try:
+        json_response = res.json()
+        return json_response["results"]
+    except requests.exceptions.JSONDecodeError as ex:
+        print(f'response error {ex}-{res}')
 
 
 def get_pages(num_pages=None):
