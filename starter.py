@@ -448,7 +448,7 @@ def signal_handler(sig, frame):
     # not yet update the log
     time_difference = datetime.now() - time_start_session
     hours, minutes, seconds = utilities.time_util.convert_seconds(time_difference.total_seconds())
-    tmp_message = (f'Working...in {hours} h, {minutes} m and {seconds} s. '
+    tmp_message = (f'Working...in {hours}h, {minutes}m, {seconds}s. '
                    f'Session profit: {(session_profit / (QUANTITY * MAX_COINS) * 100):.2f}%'
                    f' Est Profit: ${session_profit:.2f}')
     print(tmp_message)
