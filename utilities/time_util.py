@@ -17,3 +17,10 @@ def now():
 
 def now_str():
     return str(datetime.now(pytz.timezone(DEFAULT_TIME_ZONE)).replace(microsecond=0))
+
+
+def convert_seconds(total_seconds):
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = (total_seconds % 3600) % 60
+    return hours, minutes, seconds

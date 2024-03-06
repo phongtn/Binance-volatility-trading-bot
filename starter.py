@@ -428,6 +428,10 @@ def write_log(logline):
         f.write(timestamp + ' ' + logline + '\n')
 
 
+global start_time
+time_start_session = datetime.now()
+
+
 def signal_handler(sig, frame):
     global session_profit
     print(f'Receive signal {sig} to quit, sell all coins now')
@@ -442,7 +446,10 @@ def signal_handler(sig, frame):
         session_profit = session_profit + profit
 
     # not yet update the log
-    tmp_message = (f'Working...Session profit: {(session_profit / (QUANTITY * MAX_COINS) * 100):.2f}%'
+    time_difference = datetime.now() - time_start_session
+    hours, minutes, seconds = utilities.time_util.convert_seconds(time_difference.total_seconds())
+    tmp_message = (f'Working...in {hours} h, {minutes} m and {seconds} s. '
+                   f'Session profit: {(session_profit / (QUANTITY * MAX_COINS) * 100):.2f}%'
                    f' Est Profit: ${session_profit:.2f}')
     print(tmp_message)
     if TEST_MODE:
