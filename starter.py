@@ -265,7 +265,8 @@ def send_buy_order(coin: str, coin_vol: float, price: float):
             trans = dto.BinanceConverter.to_trans(order_result)
             trans.stop_loss = -STOP_LOSS
             trans.take_profit = TAKE_PROFIT
-            print(f'{TxColors.BUY}Bough {trans.quantity} {trans.symbol} at price: {trans.price}. Total {trans.quote_quantity}')
+            print(
+                f'{TxColors.BUY}Bough {trans.quantity} {trans.symbol} at price: {trans.price}. Total {trans.quote_quantity}')
             return trans
     except Exception as exception:
         print(f'Place order failed. The reason is: {exception}')
@@ -357,7 +358,6 @@ def place_order_sell(trans: BinanceTransaction, price_change: float, coin_latest
     try:
         if not TEST_MODE:
             sell_result = client.create_order(symbol=coin, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=vol)
-            # print(sell_result)
             real_fee = 0
             real_price = 0
             for fill_order in sell_result['fills']:
@@ -370,7 +370,7 @@ def place_order_sell(trans: BinanceTransaction, price_change: float, coin_latest
     except Exception as exception:
         print(f'place order error: {exception}')
 
-    # run the else block if coin has been sold and create a dict for each coin sold
+    # just to make sure the coin sold success
     else:
         # prevent a system from buying this coin for the next TIME_DIFFERENCE minutes
         volatility_cool_off[coin] = datetime.now()
@@ -382,7 +382,7 @@ def place_order_sell(trans: BinanceTransaction, price_change: float, coin_latest
               f" Est profit: ${est_profit:.2f}")
 
         if LOG_TRADES:
-            save_history.update_price(coin, coin_latest_price)
+            save_history.update_price(SIDE_SELL, coin, coin_latest_price)
         # Log trade
         if LOG_TRADES:
             write_log(

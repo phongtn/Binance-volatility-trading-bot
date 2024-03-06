@@ -7,7 +7,7 @@ class TradingLog:
         self.amount = amount
         self.total = total
         self.side = side
-        self.color = 'pink' if side == 'Buy' else 'green'
+        self.color = 'pink' if side == 'BUY' else 'green'
         self.order_time = ''
         self.last_update_time = ''
         self.page_id = ''

@@ -58,7 +58,7 @@ def find_pair(pair: str):
     """Find the latest Order by pair"""
     filter_props = {
         "and": [{"property": "Pair", "title": {"equals": pair}},
-                {"property": "Side", "select": {"equals": "Buy"}}]
+                {"property": "Side", "select": {"equals": "BUY"}}]
     }
     payload = {"page_size": 1, "filter": filter_props,
                "sorts": [{"timestamp": "last_edited_time", "direction": "descending"}]}
@@ -69,15 +69,15 @@ def find_pair(pair: str):
         order.page_id = page_object['id']
         return order
     else:
-        logger.debug('Order Pair "{} not found"'.format(pair))
+        logger.warning('Order Pair "{} not found"'.format(pair))
         return None
 
 
-def update_price(pair: str, price: float):
+def update_price(side: str, pair: str, price: float):
     order_log = find_pair(pair)
     if order_log is not None:
         order_log.sell_price = price
-        order_log.side = 'Sell'
+        order_log.side = side
         order_log.color = 'green'
         order_log.last_update_time = utilities.time_util.now()
 
