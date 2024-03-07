@@ -1,11 +1,15 @@
+import json
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 
-# needed for the binance API / websockets / Exception handling
-from binance.client import Client
+from binance.helpers import round_step_size
 
-from base_logger import logger
+import data.history
+import dto.BinanceDto
+import utilities.time_util
+from binance_api_wrapper import BinanceAPIWrapper
+from data import backtesting
 # Load creds modules
 from helpers.handle_creds import (
     load_correct_creds
@@ -14,23 +18,20 @@ from helpers.handle_creds import (
 from helpers.parameters import (
     load_config
 )
-from utilities.make_color import TxColors
-
-
-def signal_handler(sig, frame):
-    print('You pressed Ctrl+C!')
-    sys.exit(0)
-
+from publish.EventListeners import NotionListeners, TeleListeners
+from publish.EventManager import EventManager
 
 coins_bought = {'BTC': {'take_profit': 2, 'stop_loss': -1, 'volume': 55}}
 parsed_config = load_config('test.config.yml')
 parsed_creds = load_config('creds.yml')
 FIATS = parsed_config['trading_options']['FIATS']
 
-access_key, secret_key = load_correct_creds(parsed_creds)
+access_key, secret_key = load_correct_creds(parsed_creds, TEST=True)
 
-client = Client(access_key, secret_key)
-# client.API_URL = 'https://testnet.binance.vision/api'
+client = BinanceAPIWrapper(access_key, secret_key)
+
+
+# client.API_URL = client.API_TESTNET_URL
 
 
 def test_tsl(coin: str, buy_price: float, price: float, USE_TRAILING_STOP_LOSS=True):
@@ -80,12 +81,11 @@ def simulate_price_change(coin: str):
     test_tsl(coin, buy_price, 10.4)
 
 
-def get_balance():
+def get_balance(symbol: str):
     try:
-        balance = client.get_asset_balance(asset='USDT')
-        # free = [b['free'] for b in balance['balances'] if b['asset'] == 'USDT']
-        # logger.info(f'BNB: {free}')
-        logger.info(balance)
+        balance = client.get_asset_balance(asset=symbol)
+        free = balance.get('free')
+        return float(free)
     except Exception as exception:
         print(f'get account balance failed. The reason is: {exception}')
 
@@ -114,15 +114,6 @@ def test_time_difference():
     print(time_diff)
 
 
-class BinanceAPIWrapper(Client):
-    def rolling_window_price_change(self, pair: str, window: str):
-        params = {
-            'symbol': pair,
-            'windowSize': window
-        }
-        return self._get('ticker', data=params, version=client.PRIVATE_API_VERSION)
-
-
 def test_notification():
     notion = NotionListeners()
     tele = TeleListeners()
@@ -134,15 +125,6 @@ def test_notification():
     event_manger.state = 2
     event_manger.notify()
 
-
-from publish.EventManager import EventManager
-from publish.EventListeners import NotionListeners, TeleListeners
-def calc_trading_profit(buy_price, sell_price, vol):
-    """double fee for buy and sell"""
-    est_fee = TRADING_FEE / 100 * vol
-    # est_fee =  TRADING_FEE / 50 * sell_price * vol
-    est_profit = (sell_price - buy_price) * vol - est_fee
-    return est_fee, est_profit
 
 def wait_for_order_completion(coin):
     """in PROD mode, we'll get the latest order from history to ensure the order is placed."""
@@ -157,50 +139,72 @@ def wait_for_order_completion(coin):
 
     return latest_order
 
+
+def standard_volume(symbol: str, vol):
+    try:
+        info = client.get_symbol_info(symbol)
+        step_size = info['filters'][1]['stepSize']
+        print(step_size)
+        return round_step_size(vol, step_size)
+    except Exception as exception:
+        print(f'convert volume failed: {exception}')
+
+
+def get_klines(symbol: str):
+    end = datetime.now()
+    start = (end - timedelta(days=float(1))).timestamp()
+    print(utilities.time_util.convert_timestamp(start))
+    print(utilities.time_util.convert_timestamp(end.timestamp()))
+    return client.get_klines(symbol=symbol, interval='1m', startTime=int(start * 1000),
+                             endTime=int(end.timestamp() * 1000))
+
+
+def count_consecutive_sequences(arr):
+    consecutive_positives = 0
+    consecutive_negatives = 0
+    current_sequence = 0
+
+    for i in range(1, len(arr)):
+        if arr[i] > arr[i - 1]:
+            current_sequence += 1
+        else:
+            current_sequence = 0
+
+        if current_sequence > 0 and arr[i] > 0:
+            consecutive_positives = max(consecutive_positives, current_sequence)
+        elif current_sequence > 0 and arr[i] < 0:
+            consecutive_negatives = max(consecutive_negatives, current_sequence)
+
+    return consecutive_positives, consecutive_negatives
+
+
+import data.backtesting
+import pricesignal
+from dto.BinanceDto import BinanceTransaction
+
 if __name__ == '__main__':
-    result = wait_for_order_completion('PEPEUSDT')
-    print(result)
-    # get_balance()
-    # simulate_price_change('BTC')
-    # get_little_coins(10)
-    # sub_client = BinanceAPIWrapper()
-    # result = sub_client.rolling_window_price_change('BTCUSDT', '1m')
-    # print(result)
-    # simulate_price_change('BTC')
-    # test_time_difference()
+    symbol = 'IOSTUSDT'
+    end = datetime.now()
+    start = (end - timedelta(days=float(10))).timestamp()
+    today = datetime.now().date()
 
-    # test_tele_bot()
-    TIME_DIFFERENCE = 3
-    RECHECK_INTERVAL = 6
-    HISTORICAL_PRICES = [None] * (TIME_DIFFERENCE * RECHECK_INTERVAL)
-    # print(HISTORICAL_PRICES)
-    # print(timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)))
-    # test_notification()
+    custom_time = datetime.combine(today, time(hour=12, minute=25))
+    time_diff = datetime.now() - timedelta(minutes=1)
+    # ten_minutes_ago = client.get_klines_minutes(symbol, '1m', 6, time_diff)
+    # pricesignal.valid_price_change_consecutive(raw_data=ten_minutes_ago)
+    trans = BinanceTransaction('fake', 'bycusdt', 1, 1, 1, 1, 1, 'sell', 'status', -1, 2)
+    test_dict = {symbol: trans}
+    print(test_dict)
+    for k, v in test_dict.items():
+        v.order_id = 'fake 2'
+    print(test_dict)
 
-    # print(datetime.now() - last_send_tele_mess)
-    # print(timedelta(minutes=float()))
-
-    volume = 143595
-    TRADING_FEE = 0.075
-    # QUANTITY = 100
-    BuyPrice = 0.0003482
-    coin_latest_price = 0.0003557
-    est_fee = TRADING_FEE / 100 * (coin_latest_price * volume)
-    percentile_price_change = float((coin_latest_price - BuyPrice) / BuyPrice * 100)
-
-    # print(f'{est_fee * 2} and {TRADING_FEE / 50 * coin_latest_price * volume}')
-    # est_profit = (coin_latest_price * volume) - est_fee * 2 - (BuyPrice * volume)
-    est_profit = (coin_latest_price * volume) - (BuyPrice * volume) - est_fee * 2
-    est_profit_2 = (coin_latest_price - BuyPrice) * volume - (TRADING_FEE / 50 * coin_latest_price * volume)
-    profit = ((coin_latest_price - BuyPrice) * volume) * (1 - TRADING_FEE * 2)
-    # print(f"est profit: {est_profit}")
-    # print(f"est profit 2: {est_profit_2}")
-    # print(profit)
     #
-    # tx_color = TxColors.SELL_PROFIT if percentile_price_change >= 0. else TxColors.SELL_LOSS
-    # print(f"{tx_color}TP or SL reached, "
-    #       f"selling {volume} 1000SATSUSDT at price: {BuyPrice}/{coin_latest_price}."
-    #       f" Change: {percentile_price_change:.2f}%. Fee: {est_fee:.5f}."
-    #       f" Est profit: ${profit:.2f} {est_profit:.2f}")
-    #
-    # print(calc_trading_profit(2.6073, 2.6073, 383))
+    # bars = client.get_historical_klines(symbol, '1m', '5 day ago UTC')
+    # backtesting.sma_trade_logic(bars)
+
+    # print(client.get_klines_minutes(symbol, '1m', 5))
+    # history = client.get_trans_history('PEOPLEUSDT', '833365089')
+
+    # list_coins = ['AST', 'UFT', 'VITE', 'RVN', 'ETC', 'RAY']
+    # client.sell_multiple_coin(list_coins)

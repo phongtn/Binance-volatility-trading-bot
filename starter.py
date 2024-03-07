@@ -42,6 +42,7 @@ from helpers.parameters import (
 )
 from repository.trading_log import TradingLog
 from tasignal import ta_signal_check
+from pricesignal import valid_price_change_consecutive
 from utilities.make_color import StampedStdout, TxColors
 from utilities.time_util import convert_timestamp
 import dto.BinanceConverter
@@ -251,7 +252,7 @@ def place_buy_orders():
 
 
 def send_buy_order(coin: str, coin_vol: float, price: float):
-    print(f"{TxColors.BUY}Preparing to buy {coin_vol} {coin}{TxColors.DEFAULT}")
+    print(f"{TxColors.BUY}Preparing to buy {coin_vol} {coin} at price: {price}{TxColors.DEFAULT}")
     try:
         if TEST_MODE:
             return BinanceTransaction(symbol=coin, order_id='fake_order', price=price, quantity=coin_vol,
@@ -273,30 +274,32 @@ def send_buy_order(coin: str, coin_vol: float, price: float):
 
 
 def valid_buy_order(coin):
-    is_ok = True
     ta_result = ta_signal_check(coin, TA_BUY_THRESHOLD)
     if not ta_result:
         print(f'TA signal NOT good, Discard the BUY order {coin}')
-        is_ok = False
+        return False
     if coin in coins_bought:
         print(f'There is already an active trade on {coin}. No buy more')
-        is_ok = False
+        return False
     if not TEST_MODE and client.check_balance(PAIR_WITH) < QUANTITY:
         print(f'The balance {PAIR_WITH} is insufficient. Discard request BUY {coin}')
-        is_ok = False
-    return is_ok
+        return False
+    klines_data = client.get_klines_minutes(coin, '1m', 6, datetime.now() - timedelta(minutes=1))
+    if not valid_price_change_consecutive(klines_data):
+        return False
+    return True
 
 
 def sell_coins():
     """sell coins that have reached the STOP LOSS or TAKE a PROFIT threshold"""
     global hsp_head, session_profit
 
-    last_price = get_price(False)  # don't populate a rolling window
+    # last_price = get_price(False)  # don't populate a rolling window
     # last_price = get_price(add_to_historical=True) # don't populate a rolling window
     coins_sold = {}
 
     for coin, trans in coins_bought.items():
-        coin_last_price = float(last_price[coin]['price'])
+        coin_last_price = float(client.get_symbol_ticker(symbol=coin).get('price'))
         BuyPrice = trans.price
         percentile_price_change = float((coin_last_price - BuyPrice) / BuyPrice * 100)
         percentile_price_change = round(percentile_price_change, 3)
@@ -320,7 +323,6 @@ def sell_coins():
 
         # check that the price is below the stop loss or above take profit
         # (if trailing stop loss not used) and sell if this is the case
-        # Todo we should count some cycle price growth up and take profit after 3-5 cycle pump
         if coin_last_price <= price_stop_loss or coin_last_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
             coins_sold[coin] = coins_bought[coin]
             profit = place_order_sell(trans, percentile_price_change, coin_last_price)
@@ -376,7 +378,7 @@ def place_order_sell(trans: BinanceTransaction, price_change: float, coin_latest
         volatility_cool_off[coin] = datetime.now()
 
         tx_color = TxColors.SELL_PROFIT if price_change >= 0. else TxColors.SELL_LOSS
-        print(f"{tx_color}TP or SL reached, "
+        print(f"{tx_color}TP or SL reached, TP/SL: {trans.take_profit}/{trans.stop_loss} "
               f"selling {vol} {coin} at price: {trans.price}/{coin_latest_price}."
               f" Change: {price_change:.2f}%. Fee: {est_fee:.2f}."
               f" Est profit: ${est_profit:.2f}")
@@ -540,7 +542,7 @@ def load_exist_coin_bought():
 def init_binance_client(credentials_file):
     # Load creds for correct environment
     parsed_creds = load_config(credentials_file)
-    access_key, secret_key = load_correct_creds(parsed_creds, TEST=TEST_MODE)
+    access_key, secret_key = load_correct_creds(parsed_creds, TEST=False)
 
     print(f'Your credentials have been loaded from {creds_file}')
 
@@ -549,8 +551,8 @@ def init_binance_client(credentials_file):
         client = BinanceAPIWrapper(access_key, secret_key, tld='us')
     else:
         client = BinanceAPIWrapper(access_key, secret_key)
-        if TEST_MODE:
-            client.API_URL = BinanceAPIWrapper.API_TESTNET_URL
+        # if TEST_MODE:
+        #     client.API_URL = BinanceAPIWrapper.API_TESTNET_URL
     # If the users have a bad / incorrect API key.
     # This will stop the script from starting and display a helpful error.
     api_ready, msg = test_api_key(client, BinanceAPIException)
