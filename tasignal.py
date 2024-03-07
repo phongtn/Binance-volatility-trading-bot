@@ -89,8 +89,6 @@ def ta_signal_check(pair: str, threshold: int, sign_check='BUY'):
     try:
         first_analysis = first_handler.get_analysis()
         second_analysis = second_handler.get_analysis()
-        # print(first_analysis.summary)
-        # print(second_analysis.summary)
         first_ta_result = first_analysis.summary[sign_check]
         second_ta_result = second_analysis.summary[sign_check]
         return first_ta_result >= threshold and second_ta_result >= threshold
@@ -119,11 +117,4 @@ def start_tail():
 
 
 if __name__ == '__main__':
-    coin_latest_price = 6
-    price_stop_loss = 3
-    price_take_profit = 5
-    USE_TRAILING_STOP_LOSS = False
-    if coin_latest_price < price_stop_loss or coin_latest_price > price_take_profit and not USE_TRAILING_STOP_LOSS:
-        print('ok')
-    else:
-        print('false')
+    print(ta_signal_check('BTCUSDT', 13))
