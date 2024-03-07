@@ -69,7 +69,7 @@ def find_pair(pair: str):
         order.page_id = page_object['id']
         return order
     else:
-        logger.warning('Order Pair "{} not found"'.format(pair))
+        logger.debug('Order Pair "{} not found"'.format(pair))
         return None
 
 
