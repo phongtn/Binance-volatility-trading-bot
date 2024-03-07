@@ -49,7 +49,7 @@ class BinanceAPIWrapper(Client):
         except Exception as exception:
             print(f'round price failed: {exception}')
 
-    def     get_klines_minutes(self, symbol: str, interval: str, duration: int, end=datetime.now()):
+    def get_klines_minutes(self, symbol: str, interval: str, duration: int, end=datetime.now()):
         # end = datetime.now()
         start = (end - timedelta(minutes=float(duration))).timestamp()
         return self.get_klines(symbol=symbol, interval=interval, startTime=int(start * 1000),
