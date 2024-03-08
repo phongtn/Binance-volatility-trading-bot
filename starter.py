@@ -106,8 +106,7 @@ def wait_for_price():
     time_past = datetime.now() - timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL))
     if time_milestone > time_past:
         # sleep for exactly the amount of time required
-        wait_next_turn = (timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) -
-                          (datetime.now() - time_milestone)).total_seconds()
+        wait_next_turn = (timedelta(minutes=float(TIME_DIFFERENCE / RECHECK_INTERVAL)) - (datetime.now() - time_milestone)).total_seconds()
         time.sleep(wait_next_turn)
 
     # retrieve latest prices
@@ -275,16 +274,17 @@ def send_buy_order(coin: str, coin_vol: float, price: float):
 
 def valid_buy_order(coin):
     ta_result = ta_signal_check(coin, TA_BUY_THRESHOLD)
-    if not ta_result:
-        print(f'TA signal NOT good, Discard the BUY order {coin}')
-        return False
     if coin in coins_bought:
         print(f'There is already an active trade on {coin}. No buy more')
+        return False
+    if not ta_result:
+        print(f'TA signal NOT good, Discard the BUY order {coin}')
         return False
     if not TEST_MODE and client.check_balance(PAIR_WITH) < QUANTITY:
         print(f'The balance {PAIR_WITH} is insufficient. Discard request BUY {coin}')
         return False
-    klines_data = client.get_klines_minutes(coin, '1m', 6, datetime.now() - timedelta(minutes=1))
+    time_diff = datetime.now() - timedelta(minutes=1)
+    klines_data = client.get_klines_minutes(coin, '1m', 6, time_diff)
     if not valid_price_change_consecutive(klines_data):
         return False
     return True

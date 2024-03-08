@@ -46,9 +46,10 @@ def valid_price_change_consecutive(raw_data):
     percentile_price_change = df['close_change_percentile'][1:].to_numpy()
     pos_count, neg_count = count_consecutive_sequences(percentile_price_change)
 
-    if pos_count - neg_count > 0:
-        print(f'DONT Buy. {percentile_price_change}')
-        return False
-    else:
+    # only buy if the previous cycle is down
+    if neg_count - pos_count >= 1:
         print(f'Buy. {percentile_price_change}')
         return True
+    else:
+        print(f'DONT Buy. {percentile_price_change}')
+        return False
