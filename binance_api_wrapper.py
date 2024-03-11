@@ -55,13 +55,13 @@ class BinanceAPIWrapper(Client):
         return self.get_klines(symbol=symbol, interval=interval, startTime=int(start * 1000),
                                endTime=int(end.timestamp() * 1000), timeZone=7)
 
-    def top_price_change_24h(self, limit: int, pair_with='USDT'):
+    def top_price_change_24h(self, limit=10, pair_with='USDT'):
         all_ticker = self.get_ticker()
         cleaned_list = [item for item in all_ticker if pair_with in item.get('symbol', '')]
         sorted_list = sorted(cleaned_list, key=lambda x: float(x['priceChangePercent']), reverse=True)
         return sorted_list[:limit]
 
-    def top_top_volume_24h(self, limit: int, pair_with='USDT'):
+    def top_top_volume_24h(self, limit=10, pair_with='USDT'):
         all_ticker = self.get_ticker()
         cleaned_list = [item for item in all_ticker if pair_with in item.get('symbol', '')]
         sorted_list = sorted(cleaned_list, key=lambda x: float(x['volume']), reverse=True)
