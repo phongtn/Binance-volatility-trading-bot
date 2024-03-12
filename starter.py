@@ -283,10 +283,10 @@ def valid_buy_order(coin):
     if not TEST_MODE and client.check_balance(PAIR_WITH) < QUANTITY:
         print(f'The balance {PAIR_WITH} is insufficient. Discard request BUY {coin}')
         return False
-    time_diff = datetime.now() - timedelta(minutes=1)
-    klines_data = client.get_klines_minutes(coin, '1m', 6, time_diff)
-    if not valid_price_change_consecutive(klines_data):
-        return False
+    # time_diff = datetime.now() - timedelta(minutes=1)
+    # klines_data = client.get_klines_minutes(coin, '1m', 6, time_diff)
+    # if not valid_price_change_consecutive(klines_data):
+    #     return False
     return True
 
 

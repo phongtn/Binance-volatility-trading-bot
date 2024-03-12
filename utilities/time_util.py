@@ -19,6 +19,11 @@ def now_str():
     return str(datetime.now(pytz.timezone(DEFAULT_TIME_ZONE)).replace(microsecond=0))
 
 
+def str_date_to_timestamp(str_date: str, fm: str = '%Y-%m-%d %H:%M:%S'):
+    date_obj = datetime.strptime(str_date, fm)
+    return date_obj.timestamp()
+
+
 def convert_seconds(total_seconds):
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60

@@ -3,6 +3,7 @@ import sys
 import time
 from datetime import datetime, timedelta, time
 
+import pytz
 from binance.helpers import round_step_size
 
 import data.history
@@ -181,30 +182,40 @@ def count_consecutive_sequences(arr):
 import data.backtesting
 import pricesignal
 from dto.BinanceDto import BinanceTransaction
+import pandas as pd
 
 if __name__ == '__main__':
-    symbol = 'IOSTUSDT'
+    symbol = 'DOGE' + 'USDT'
     end = datetime.now()
     start = (end - timedelta(days=float(10))).timestamp()
     today = datetime.now().date()
 
-    custom_time = datetime.combine(today, time(hour=12, minute=25))
-    time_diff = datetime.now() - timedelta(minutes=1)
-    # ten_minutes_ago = client.get_klines_minutes(symbol, '1m', 6, time_diff)
-    # pricesignal.valid_price_change_consecutive(raw_data=ten_minutes_ago)
-    trans = BinanceTransaction('fake', 'bycusdt', 1, 1, 1, 1, 1, 'sell', 'status', -1, 2)
-    test_dict = {symbol: trans}
-    print(test_dict)
-    for k, v in test_dict.items():
-        v.order_id = 'fake 2'
-    print(test_dict)
+    custom_time = datetime.combine(today, time(hour=10, minute=48))
+    # time_diff = datetime.now() - timedelta(minutes=3)
+    # raw_data = client.get_klines_minutes(symbol, '1m', 60 * 3, custom_time)
+    # pricesignal.valid_price_change_consecutive(raw_data=raw_data)
+    # backtesting.sma_trade_logic(raw_data)
 
-    #
-    # bars = client.get_historical_klines(symbol, '1m', '5 day ago UTC')
+    # sma
+    bars = client.get_historical_klines(symbol, client.KLINE_INTERVAL_3MINUTE, '1 day ago UTC')
+    # bars = client.get_klines_minutes(symbol, '3m', 60 * 3)
+    # pricesignal.valid_price_change_consecutive(raw_data=bars)
     # backtesting.sma_trade_logic(bars)
+    # pricesignal.valid_price_change_consecutive(raw_data=raw_data)
+    # df = pricesignal.build_dataframe(bars)
+    # df = pricesignal.bollinger_bands(df)
+    # print(df.head(20))
 
-    # print(client.get_klines_minutes(symbol, '1m', 5))
-    # history = client.get_trans_history('PEOPLEUSDT', '833365089')
+    start_time = int(datetime(2024, 3, 11, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
+    end_time = int(datetime(2024, 3, 12, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
+    raw_data = client.get_historical_klines(symbol=symbol, interval='3m',
+                                            start_str=start_time, end_str=end_time)
+    for line in raw_data:
+        del line[6:]
+    #  2 dimensional tabular data
+    df = pd.DataFrame(raw_data, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
+    df.set_index('date', inplace=True)
+    df.index = pd.to_datetime(df.index, unit='ms')
+    # df['date'] = pd.to_datetime(df['date'], format='%y-%m-%d %H:%M:%S')
 
-    # list_coins = ['AST', 'UFT', 'VITE', 'RVN', 'ETC', 'RAY']
-    # client.sell_multiple_coin(list_coins)
+    df.to_csv(f'data/{symbol}_3m_oneday.csv', encoding='utf-8')
