@@ -1,20 +1,22 @@
 import pandas as pd
+from pandas import DataFrame
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Define the file path again (as the code execution state was reset)
-file_path = 'BNBUSDT_oneday.csv'
 
-# Load the dataset with the correct delimiter
-data = pd.read_csv(file_path)
+# data = pd.read_csv(file_path)
 
-# Convert the 'date' column to datetime
-data['date'] = pd.to_datetime(data['date'])
-
-# Calculations based on user's new request
-# Calculate one-minute price volatility based on percent change in closing price
-data['price_volatility_pct_change'] = data['close'].pct_change() * 100
-data['volume_change'] = data['volume'].diff()
+def init_data(raw_data):
+    for line in raw_data:
+        del line[6:]
+    numeric_cols = ['open', 'high', 'low', 'close', 'volume']
+    df = pd.DataFrame(raw_data, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
+    df['date'] = pd.to_datetime(df['date'], unit='ms')
+    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
+    df['price_volatility_pct_change'] = df['close'].pct_change() * 100
+    df['volume_change'] = df['volume'].diff()
+    # print(df.tail(5))
+    return df
 
 
 # Relative Strength Index (RSI)
@@ -31,74 +33,79 @@ def compute_rsi(data, window):
     return rsi
 
 
-# print(data.tail(10))
+def compute_bollinger_bands(df, window: int = 20):
+    # Bollinger Bands
+    df['bb_mavg_manual'] = df['close'].rolling(window=window).mean()
+    std_dev = df['close'].rolling(window=window).std()
+    df['bb_hband_manual'] = df['bb_mavg_manual'] + (std_dev * 2)
+    df['bb_lband_manual'] = df['bb_mavg_manual'] - (std_dev * 2)
+    return df
 
-data['rsi14_manual'] = compute_rsi(data, 14)
 
-# Bollinger Bands
-data['bb_mavg_manual'] = data['close'].rolling(window=20).mean()
-std_dev = data['close'].rolling(window=20).std()
-data['bb_hband_manual'] = data['bb_mavg_manual'] + (std_dev * 2)
-data['bb_lband_manual'] = data['bb_mavg_manual'] - (std_dev * 2)
+def back_testing(raw_data: DataFrame):
+    data = init_data(raw_data)
+    data['rsi14_manual'] = compute_rsi(data, 14)
 
-buy_signals = data[
-    # (data['close'] <= data['bb_lband_manual']) &
-    # (data['rsi14_manual'] < 30)
-    # &
-    (data['price_volatility_pct_change'] > 0.3)
-]
+    # Identify the buy signal
+    buy_signals = data[
+        # (data['close'] <= data['bb_lband_manual']) &
+        # (data['rsi14_manual'] < 30)
+        # &
+        (data['price_volatility_pct_change'] > 0.3)
+    ]
 
-# Process to find profits and losses based on updated criteria
-profits_updated = []
-stop_losses_updated = []
+    # Process to find profits and losses based on updated criteria
+    profits_updated = []
+    stop_losses_updated = []
 
-# Assuming a 24-hour market for minutes in day
-minutes_in_day = 24 * 60
+    # Assuming a 24-hour market for minutes in the day
+    minutes_in_day = 24 * 60
 
-# print(data.tail(10))
-print(buy_signals[['date', 'close', 'price_volatility_pct_change', 'volume',
-                   'volume_change', 'rsi14_manual', 'bb_lband_manual']])
+    # print(buy_signals[['date', 'close', 'price_volatility_pct_change', 'volume', 'volume_change', 'rsi14_manual']])
 
-for index, signal in buy_signals.iterrows():
-    entry_price = signal['close']
-    profit_target = entry_price * 1.04
-    stop_loss_target = entry_price * 0.98
+    for index, signal in buy_signals.iterrows():
+        entry_price = signal['close']
+        profit_target = entry_price * 1.02
+        stop_loss_target = entry_price * 0.98
 
-    if index + minutes_in_day < len(data):
-        look_ahead_window = data.loc[index + 1: index + minutes_in_day]
-    else:
-        look_ahead_window = data.loc[index + 1:]
+        if index + minutes_in_day < len(data):
+            look_ahead_window = data.loc[index + 1: index + minutes_in_day]
+        else:
+            look_ahead_window = data.loc[index + 1:]
 
-    profit_hit = False
-    stop_loss_hit = False
+        profit_hit = False
+        stop_loss_hit = False
 
-    for _, future_data in look_ahead_window.iterrows():
-        if future_data['close'] >= profit_target:
-            profits_updated.append(profit_target - entry_price)
-            profit_hit = True
-            print(f'TP at {future_data["date"]} - {future_data["high"]}')
-            break
-        elif future_data['close'] <= stop_loss_target:
-            stop_losses_updated.append(entry_price - stop_loss_target)
-            stop_loss_hit = True
-            print(f'SL at {future_data["date"]} - {signal["close"]}/{future_data["high"]}')
-            break
+        for _, future_data in look_ahead_window.iterrows():
+            if future_data['high'] >= profit_target:
+                profits_updated.append(future_data['high'] - entry_price)
+                profit_hit = True
+                # print(f'TP at {future_data["date"]} - {future_data["high"]}')
+                break
+            elif future_data['low'] <= stop_loss_target:
+                stop_losses_updated.append(entry_price - future_data['low'])
+                stop_loss_hit = True
+                # print(f'SL at {future_data["date"]} - {signal["close"]}/{future_data["high"]}')
+                break
 
-    if not profit_hit and not stop_loss_hit:
-        profits_updated.append(0)
+        if not profit_hit and not stop_loss_hit:
+            profits_updated.append(0)
 
-# Calculating outcomes
-total_trades_updated = len(profits_updated) + len(stop_losses_updated)
-total_profits_updated = sum(profits_updated)
-total_losses_updated = sum(stop_losses_updated)
-win_rate_updated = len([p for p in profits_updated if p > 0]) / total_trades_updated if total_trades_updated > 0 else 0
-average_profit_updated = total_profits_updated / len(profits_updated) if len(profits_updated) > 0 else 0
-average_loss_updated = total_losses_updated / len(stop_losses_updated) if len(stop_losses_updated) > 0 else 0
+    # Calculating outcomes
+    total_trades_updated = len(profits_updated) + len(stop_losses_updated)
+    total_profits_updated = sum(profits_updated)
+    total_losses_updated = sum(stop_losses_updated)
+    asset_remaining = total_profits_updated - total_losses_updated
+    win_rate_updated = len(
+        [p for p in profits_updated if p > 0]) / total_trades_updated if total_trades_updated > 0 else 0
+    average_profit_updated = total_profits_updated / len(profits_updated) if len(profits_updated) > 0 else 0
+    average_loss_updated = total_losses_updated / len(stop_losses_updated) if len(stop_losses_updated) > 0 else 0
 
-print("==========================================")
-print(f'Total Trades Executed: {total_trades_updated}')
-print(f'Total Profit from Trades: {total_profits_updated}')
-print(f'Total Loss from Trades: {total_losses_updated}')
-print(f'Win Rate: {win_rate_updated}')
-print(f'Average Profit per Trade: {average_profit_updated}')
-print(f'Average Loss per Trade: {average_loss_updated}')
+    print(
+        f'Total Trades Executed: {total_trades_updated}. Total Profits/Losses: {len(profits_updated)}/{len(stop_losses_updated)}')
+    print(f'Total Profit from Trades: {total_profits_updated:.3f}')
+    print(f'Total Loss from Trades: {total_losses_updated:.3f}')
+    print(f'Profit/Loss: {asset_remaining:.3f}')
+    print(f'Win Rate: {round(win_rate_updated * 100, 3)}')
+    print(f'Average Profit per Trade: {average_profit_updated:.3f}')
+    print(f'Average Loss per Trade: {average_loss_updated:.3f}')
