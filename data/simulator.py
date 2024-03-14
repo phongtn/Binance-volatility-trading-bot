@@ -1,10 +1,7 @@
 import pandas as pd
 from pandas import DataFrame
-import matplotlib.pyplot as plt
-import seaborn as sns
+from data.tech_analysis import TechAnalysis
 
-
-# data = pd.read_csv(file_path)
 
 def init_data(raw_data):
     for line in raw_data:
@@ -45,6 +42,10 @@ def compute_bollinger_bands(df, window: int = 20):
 def back_testing(raw_data: DataFrame):
     data = init_data(raw_data)
     data['rsi14_manual'] = compute_rsi(data, 14)
+    TA = TechAnalysis()
+    data = TA.calculate_technicals(data)
+
+    print(data.tail(10))
 
     # Identify the buy signal
     buy_signals = data[
@@ -64,7 +65,7 @@ def back_testing(raw_data: DataFrame):
     # print(buy_signals[['date', 'close', 'price_volatility_pct_change', 'volume', 'volume_change', 'rsi14_manual']])
 
     for index, signal in buy_signals.iterrows():
-        entry_price = signal['close']
+        entry_price = signal['close']  # buy at close price
         profit_target = entry_price * 1.02
         stop_loss_target = entry_price * 0.98
 
@@ -101,11 +102,14 @@ def back_testing(raw_data: DataFrame):
     average_profit_updated = total_profits_updated / len(profits_updated) if len(profits_updated) > 0 else 0
     average_loss_updated = total_losses_updated / len(stop_losses_updated) if len(stop_losses_updated) > 0 else 0
 
-    print(
-        f'Total Trades Executed: {total_trades_updated}. Total Profits/Losses: {len(profits_updated)}/{len(stop_losses_updated)}')
-    print(f'Total Profit from Trades: {total_profits_updated:.3f}')
-    print(f'Total Loss from Trades: {total_losses_updated:.3f}')
-    print(f'Profit/Loss: {asset_remaining:.3f}')
-    print(f'Win Rate: {round(win_rate_updated * 100, 3)}')
-    print(f'Average Profit per Trade: {average_profit_updated:.3f}')
-    print(f'Average Loss per Trade: {average_loss_updated:.3f}')
+    # print(
+    #     f'Total Trades Executed: {total_trades_updated}. '
+    #     f'Total Profits/Losses: {len(profits_updated)}/{len(stop_losses_updated)}')
+    # print(f'Total Profit from Trades: {total_profits_updated:.3f}')
+    # print(f'Total Loss from Trades: {total_losses_updated:.3f}')
+    # print(f'Profit/Loss: {asset_remaining:.3f}')
+    # print(f'Win Rate: {round(win_rate_updated * 100, 3)}')
+    # print(f'Average Profit per Trade: {average_profit_updated:.3f}')
+    # print(f'Average Loss per Trade: {average_loss_updated:.3f}')
+
+    return total_trades_updated, total_profits_updated, total_losses_updated, asset_remaining, win_rate_updated
