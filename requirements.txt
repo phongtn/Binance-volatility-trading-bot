@@ -9,3 +9,6 @@ pandas~=2.2.1
 plotly~=5.19.0
 numpy~=1.26.4
 matplotlib~=3.8.3
+seaborn~=0.13.2
+backtrader~=1.9.78.123
+yfinance~=0.2.37
