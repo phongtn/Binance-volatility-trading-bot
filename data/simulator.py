@@ -17,19 +17,6 @@ def init_data(raw_data):
 
 
 # Relative Strength Index (RSI)
-def compute_rsi(data, window):
-    delta = data['close'].diff()
-    up = delta.clip(lower=0)
-    down = -1 * delta.clip(upper=0)
-
-    ma_up = up.where(delta > 0, 0).rolling(window=window).mean()
-    ma_down = down.where(delta < 0, 0).rolling(window=window).mean()
-
-    rs = ma_up / ma_down
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
-
-
 def compute_bollinger_bands(df, window: int = 20):
     # Bollinger Bands
     df['bb_mavg_manual'] = df['close'].rolling(window=window).mean()
@@ -41,11 +28,10 @@ def compute_bollinger_bands(df, window: int = 20):
 
 def back_testing(raw_data: DataFrame):
     data = init_data(raw_data)
-    data['rsi14_manual'] = compute_rsi(data, 14)
     TA = TechAnalysis()
     data = TA.calculate_technicals(data)
 
-    print(data.tail(10))
+    print(data[['date', 'close', 'RSI14', 'RSI7', 'EMA']])
 
     # Identify the buy signal
     buy_signals = data[

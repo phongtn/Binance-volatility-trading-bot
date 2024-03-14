@@ -15,7 +15,7 @@ client = BinanceAPIWrapper(access_key, secret_key)
 
 if __name__ == '__main__':
     symbol = 'BNB' + 'USDT'
-    start_time = int(datetime(2024, 3, 13, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
+    start_time = int(datetime(2024, 3, 12, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
     end_time = int(datetime(2024, 3, 14, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
 
     # tickers = [line.strip() for line in open('big_tickers.txt')]
