@@ -10,7 +10,7 @@ def init_data(raw_data):
     df = pd.DataFrame(raw_data, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
     df['date'] = pd.to_datetime(df['date'], unit='ms')
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
-    df['price_volatility_pct_change'] = df['close'].pct_change() * 100
+    df['price_pct_change'] = df['close'].pct_change() * 100
     df['volume_change'] = df['volume'].diff()
     # print(df.tail(5))
     return df
@@ -26,20 +26,42 @@ def compute_bollinger_bands(df, window: int = 20):
     return df
 
 
+def count_consecutive_sequences(arr: []):
+    positive_count = 0
+    negative_count = 0
+
+    for num in arr:
+        if num > 0:
+            positive_count += 1
+        elif num <= 0:
+            negative_count += 1
+
+    return positive_count, negative_count
+
+
 def back_testing(raw_data: DataFrame):
     data = init_data(raw_data)
     TA = TechAnalysis()
     data = TA.calculate_technicals(data)
 
-    print(data[['date', 'close', 'RSI14', 'RSI7', 'EMA']])
+    data['rsi_pct_change'] = data['RSI14'].pct_change() * 100
+
+    # print(data[['date', 'close', 'price_pct_change', 'RSI14', 'rsi_pct_change', 'EMA']])
+    data.to_csv(f'data/result_3m_oneday.csv', sep='\t', encoding='utf-8')
 
     # Identify the buy signal
     buy_signals = data[
         # (data['close'] <= data['bb_lband_manual']) &
-        # (data['rsi14_manual'] < 30)
+        # (data['RSI14'] < 50)
         # &
-        (data['price_volatility_pct_change'] > 0.3)
+        (data['price_pct_change'] > 0.3)
     ]
+
+    for index, rows in data.iterrows():
+        if rows['price_pct_change'] > 0.3:
+            rsi_con = data['rsi_pct_change'][index - 3: index].to_numpy()
+            print(f'{rsi_con} : {rows["date"]}')
+            print("===============")
 
     # Process to find profits and losses based on updated criteria
     profits_updated = []
@@ -48,7 +70,7 @@ def back_testing(raw_data: DataFrame):
     # Assuming a 24-hour market for minutes in the day
     minutes_in_day = 24 * 60
 
-    # print(buy_signals[['date', 'close', 'price_volatility_pct_change', 'volume', 'volume_change', 'rsi14_manual']])
+    # print(buy_signals[['date', 'close', 'price_pct_change', 'volume', 'volume_change', 'rsi14_manual']])
 
     for index, signal in buy_signals.iterrows():
         entry_price = signal['close']  # buy at close price
