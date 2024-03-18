@@ -42,7 +42,7 @@ from helpers.parameters import (
 )
 from repository.trading_log import TradingLog
 from tasignal import ta_signal_check
-from pricesignal import valid_price_change_consecutive
+# from pricesignal import valid_price_change_consecutive
 from utilities.make_color import StampedStdout, TxColors
 from utilities.time_util import convert_timestamp
 import dto.BinanceConverter
