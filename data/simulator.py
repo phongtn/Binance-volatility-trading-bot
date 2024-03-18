@@ -38,6 +38,11 @@ def count_consecutive_sequences(arr: []):
 
     return positive_count, negative_count
 
+def append_row(df, row):
+    return pd.concat([
+                df,
+                pd.DataFrame([row], columns=row.index)]
+           ).reset_index(drop=True)
 
 def back_testing(raw_data: DataFrame):
     data = init_data(raw_data)
@@ -50,18 +55,23 @@ def back_testing(raw_data: DataFrame):
     data.to_csv(f'data/result_3m_oneday.csv', sep='\t', encoding='utf-8')
 
     # Identify the buy signal
-    buy_signals = data[
-        # (data['close'] <= data['bb_lband_manual']) &
-        # (data['RSI14'] < 50)
-        # &
-        (data['price_pct_change'] > 0.3)
-    ]
+    # buy_signals = data[
+    #     # (data['close'] <= data['bb_lband_manual']) &
+    #     # (data['RSI14'] < 50)
+    #     # &
+    #     (data['price_pct_change'] > 0.3)
+    # ]
+    buy_signals = pd.DataFrame()
 
     for index, rows in data.iterrows():
         if rows['price_pct_change'] > 0.3:
-            rsi_con = data['rsi_pct_change'][index - 3: index].to_numpy()
-            print(f'{rsi_con} : {rows["date"]}')
-            print("===============")
+            rsi_con = data['rsi_pct_change'][index - 2: index].to_numpy()
+            # print(f'{rsi_con} : {rows["date"]}')
+            # print("===============")
+            pos_count, neg_count = count_consecutive_sequences(rsi_con)
+
+            if pos_count >= 2:
+                buy_signals = append_row(buy_signals, rows)
 
     # Process to find profits and losses based on updated criteria
     profits_updated = []
@@ -70,7 +80,7 @@ def back_testing(raw_data: DataFrame):
     # Assuming a 24-hour market for minutes in the day
     minutes_in_day = 24 * 60
 
-    # print(buy_signals[['date', 'close', 'price_pct_change', 'volume', 'volume_change', 'rsi14_manual']])
+    print(buy_signals.head(10))
 
     for index, signal in buy_signals.iterrows():
         entry_price = signal['close']  # buy at close price

@@ -1,16 +1,10 @@
-import json
-import sys
 import time
 from datetime import datetime, timedelta, time
 
-import pytz
 from binance.helpers import round_step_size
 
-import data.history
-import dto.BinanceDto
 import utilities.time_util
 from binance_api_wrapper import BinanceAPIWrapper
-from data import backtesting
 # Load creds modules
 from helpers.handle_creds import (
     load_correct_creds
@@ -179,13 +173,8 @@ def count_consecutive_sequences(arr):
     return consecutive_positives, consecutive_negatives
 
 
-import data.backtesting
-import pricesignal
-from dto.BinanceDto import BinanceTransaction
-import pandas as pd
-
 if __name__ == '__main__':
-    symbol = 'DOGE' + 'USDT'
+    symbol = 'BNB' + 'USDT'
     end = datetime.now()
     start = (end - timedelta(days=float(10))).timestamp()
     today = datetime.now().date()
@@ -197,7 +186,7 @@ if __name__ == '__main__':
     # backtesting.sma_trade_logic(raw_data)
 
     # sma
-    bars = client.get_historical_klines(symbol, client.KLINE_INTERVAL_3MINUTE, '1 day ago UTC')
+    # bars = client.get_historical_klines(symbol, client.KLINE_INTERVAL_3MINUTE, '1 day ago UTC')
     # bars = client.get_klines_minutes(symbol, '3m', 60 * 3)
     # pricesignal.valid_price_change_consecutive(raw_data=bars)
     # backtesting.sma_trade_logic(bars)
@@ -206,16 +195,4 @@ if __name__ == '__main__':
     # df = pricesignal.bollinger_bands(df)
     # print(df.head(20))
 
-    start_time = int(datetime(2024, 3, 11, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
-    end_time = int(datetime(2024, 3, 12, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
-    raw_data = client.get_historical_klines(symbol=symbol, interval='3m',
-                                            start_str=start_time, end_str=end_time)
-    for line in raw_data:
-        del line[6:]
-    #  2 dimensional tabular data
-    df = pd.DataFrame(raw_data, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
-    df.set_index('date', inplace=True)
-    df.index = pd.to_datetime(df.index, unit='ms')
-    # df['date'] = pd.to_datetime(df['date'], format='%y-%m-%d %H:%M:%S')
-
-    df.to_csv(f'data/{symbol}_3m_oneday.csv', encoding='utf-8')
+    # df.to_csv(f'data/{symbol}_3m_oneday.csv', encoding='utf-8')
