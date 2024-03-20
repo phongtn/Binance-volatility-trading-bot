@@ -55,23 +55,20 @@ def back_testing(raw_data: DataFrame):
     data.to_csv(f'data/result_3m_oneday.csv', sep='\t', encoding='utf-8')
 
     # Identify the buy signal
-    # buy_signals = data[
-    #     # (data['close'] <= data['bb_lband_manual']) &
-    #     # (data['RSI14'] < 50)
-    #     # &
-    #     (data['price_pct_change'] > 0.3)
-    # ]
-    buy_signals = pd.DataFrame()
+    buy_signals = data[
+        # (data['close'] <= data['bb_lband_manual']) &
+        # (data['RSI14'] < 50)
+        # &
+        (data['price_pct_change'] > 0.5)
+    ]
+    # buy_signals = pd.DataFrame()
 
-    for index, rows in data.iterrows():
-        if rows['price_pct_change'] > 0.3:
-            rsi_con = data['rsi_pct_change'][index - 2: index].to_numpy()
-            # print(f'{rsi_con} : {rows["date"]}')
-            # print("===============")
-            pos_count, neg_count = count_consecutive_sequences(rsi_con)
-
-            if pos_count >= 2:
-                buy_signals = append_row(buy_signals, rows)
+    # for index, rows in data.iterrows():
+    #     if rows['price_pct_change'] > 0.3:
+    #         rsi_con = data['rsi_pct_change'][index - 2: index].to_numpy()
+    #         pos_count, neg_count = count_consecutive_sequences(rsi_con)
+    #         if pos_count >= 2:
+    #             buy_signals = append_row(buy_signals, rows)
 
     # Process to find profits and losses based on updated criteria
     profits_updated = []
@@ -104,7 +101,7 @@ def back_testing(raw_data: DataFrame):
             elif future_data['low'] <= stop_loss_target:
                 stop_losses_updated.append(entry_price - future_data['low'])
                 stop_loss_hit = True
-                # print(f'SL at {future_data["date"]} - {signal["close"]}/{future_data["high"]}')
+                print(f'SL at {future_data["date"]} - {signal["close"]}/{future_data["high"]}')
                 break
 
         if not profit_hit and not stop_loss_hit:
