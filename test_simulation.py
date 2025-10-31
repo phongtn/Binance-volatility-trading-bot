@@ -14,9 +14,9 @@ access_key, secret_key = load_correct_creds(parsed_creds, TEST=True)
 client = BinanceAPIWrapper(access_key, secret_key)
 
 if __name__ == '__main__':
-    symbol = 'NEAR' + 'USDT'
-    start_time = int(datetime(2024, 3, 16, 0, 0, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
-    end_time = int(datetime(2024, 3, 18, 0, 0, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
+    symbol = 'BNB' + 'USDT'
+    start_time = int(datetime(2025, 10, 24, 0, 0, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
+    end_time = int(datetime(2025, 10, 31, 0, 0, tzinfo=pytz.timezone('UTC')).timestamp() * 1000)
 
     # tickers = [line.strip() for line in open('big_tickers.txt')]
     tickers = [symbol]
@@ -37,4 +37,4 @@ if __name__ == '__main__':
     df = pd.DataFrame(results,
                       columns=['symbol', 'count_trades', 'total_profits', 'total_losses', 'asset_remaining',
                                'win_rate'])
-    print(df.head(10))
+    # print(df.head(10))

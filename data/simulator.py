@@ -38,11 +38,13 @@ def count_consecutive_sequences(arr: []):
 
     return positive_count, negative_count
 
+
 def append_row(df, row):
     return pd.concat([
-                df,
-                pd.DataFrame([row], columns=row.index)]
-           ).reset_index(drop=True)
+        df,
+        pd.DataFrame([row], columns=row.index)]
+    ).reset_index(drop=True)
+
 
 def back_testing(raw_data: DataFrame):
     data = init_data(raw_data)
@@ -58,9 +60,10 @@ def back_testing(raw_data: DataFrame):
     buy_signals = data[
         # (data['close'] <= data['bb_lband_manual']) &
         # (data['RSI14'] < 50)
-        # &
+        (data['MACD'] > 0)
+        &
         (data['price_pct_change'] > 0.5)
-    ]
+        ]
     # buy_signals = pd.DataFrame()
 
     # for index, rows in data.iterrows():
@@ -77,11 +80,11 @@ def back_testing(raw_data: DataFrame):
     # Assuming a 24-hour market for minutes in the day
     minutes_in_day = 24 * 60
 
-    print(buy_signals.head(10))
+    # print(buy_signals.head(10))
 
     for index, signal in buy_signals.iterrows():
         entry_price = signal['close']  # buy at close price
-        profit_target = entry_price * 1.02
+        profit_target = entry_price * 1.01
         stop_loss_target = entry_price * 0.98
 
         if index + minutes_in_day < len(data):
@@ -96,12 +99,16 @@ def back_testing(raw_data: DataFrame):
             if future_data['high'] >= profit_target:
                 profits_updated.append(future_data['high'] - entry_price)
                 profit_hit = True
-                # print(f'TP at {future_data["date"]} - {future_data["high"]}')
+                print(
+                    f'Buy price {signal["close"]} - {signal["date"]} '
+                    f'TP at {future_data["date"]} at price: {future_data["high"]}')
                 break
             elif future_data['low'] <= stop_loss_target:
                 stop_losses_updated.append(entry_price - future_data['low'])
                 stop_loss_hit = True
-                print(f'SL at {future_data["date"]} - {signal["close"]}/{future_data["high"]}')
+                print(
+                    f'Buy price {signal["close"]} - {signal["date"]} '
+                    f'SL at {future_data["date"]} at price: {future_data["high"]}')
                 break
 
         if not profit_hit and not stop_loss_hit:
@@ -117,14 +124,14 @@ def back_testing(raw_data: DataFrame):
     average_profit_updated = total_profits_updated / len(profits_updated) if len(profits_updated) > 0 else 0
     average_loss_updated = total_losses_updated / len(stop_losses_updated) if len(stop_losses_updated) > 0 else 0
 
-    # print(
-    #     f'Total Trades Executed: {total_trades_updated}. '
-    #     f'Total Profits/Losses: {len(profits_updated)}/{len(stop_losses_updated)}')
-    # print(f'Total Profit from Trades: {total_profits_updated:.3f}')
-    # print(f'Total Loss from Trades: {total_losses_updated:.3f}')
-    # print(f'Profit/Loss: {asset_remaining:.3f}')
-    # print(f'Win Rate: {round(win_rate_updated * 100, 3)}')
-    # print(f'Average Profit per Trade: {average_profit_updated:.3f}')
-    # print(f'Average Loss per Trade: {average_loss_updated:.3f}')
+    print(
+        f'Total Trades Executed: {total_trades_updated}. '
+        f'Total Profits/Losses: {len(profits_updated)}/{len(stop_losses_updated)}')
+    print(f'Total Profit from Trades: {total_profits_updated:.3f}')
+    print(f'Total Loss from Trades: {total_losses_updated:.3f}')
+    print(f'Profit/Loss: {asset_remaining:.3f}')
+    print(f'Win Rate: {round(win_rate_updated * 100, 3)}')
+    print(f'Average Profit per Trade: {average_profit_updated:.3f}')
+    print(f'Average Loss per Trade: {average_loss_updated:.3f}')
 
     return total_trades_updated, total_profits_updated, total_losses_updated, asset_remaining, win_rate_updated
